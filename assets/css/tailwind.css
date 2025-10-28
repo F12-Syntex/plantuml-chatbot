@@ -2,18 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Optional: small tweaks for the chat UI
-@layer components {
-  .chat-bubble {
-    @apply rounded-2xl px-4 py-3 text-sm leading-relaxed;
+@layer utilities {
+  .animate-slide-up {
+    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .chat-bubble-user {
-    @apply bg-primary text-dark;
+  
+  .animate-scale-in {
+    animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .chat-bubble-bot {
-    @apply bg-secondary text-light;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
   }
-  .scrollbar-thin {
-    scrollbar-width: thin;
+  to {
+    transform: translateY(0);
+    opacity: 1;
   }
-} */
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
