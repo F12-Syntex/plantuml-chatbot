@@ -3,10 +3,11 @@
     <div class="card bg-base-100 border border-base-300 shadow-lg overflow-hidden">
       <DiagramHeader 
         :copied="copied"
+        :image-copied="imageCopied"
         @theme="themeDrawerOpen = true"
         @copy="copyCode"
         @download="downloadImage"
-        @open="openInBrowser"
+        @copy-image="copyImage"
         @toggle-code="toggleCode"
       />
 
@@ -39,6 +40,16 @@
         <div class="bg-neutral text-neutral-content p-4 overflow-x-auto">
           <pre class="text-xs sm:text-sm font-mono whitespace-pre-wrap break-words">{{ currentCode }}</pre>
         </div>
+      </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div v-if="showToast" class="toast toast-top toast-end z-50">
+      <div class="alert alert-success">
+        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span>{{ toastMessage }}</span>
       </div>
     </div>
 
@@ -97,6 +108,9 @@ const showCode = ref(false)
 const loading = ref(true)
 const error = ref<string | null>(null)
 const copied = ref(false)
+const imageCopied = ref(false)
+const showToast = ref(false)
+const toastMessage = ref('')
 const currentCode = ref(props.code)
 const svgContent = ref('')
 const diagramContainer = ref<HTMLElement | null>(null)
@@ -121,6 +135,19 @@ const imageUrl = computed(() => {
   if (!encodedDiagram.value) return ''
   return `https://www.plantuml.com/plantuml/svg/${encodedDiagram.value}`
 })
+
+const pngImageUrl = computed(() => {
+  if (!encodedDiagram.value) return ''
+  return `https://www.plantuml.com/plantuml/png/${encodedDiagram.value}`
+})
+
+function showToastNotification(message: string) {
+  toastMessage.value = message
+  showToast.value = true
+  setTimeout(() => {
+    showToast.value = false
+  }, 2000)
+}
 
 function applyTheme(theme: Partial<DiagramTheme>) {
   const lines = currentCode.value.split('\n')
@@ -169,36 +196,91 @@ async function copyCode() {
   try {
     await navigator.clipboard.writeText(currentCode.value)
     copied.value = true
+    showToastNotification('Code copied to clipboard!')
     setTimeout(() => {
       copied.value = false
     }, 2000)
   } catch (e) {
     console.error('Failed to copy:', e)
+    showToastNotification('Failed to copy code')
   }
 }
 
 async function downloadImage() {
-  if (!imageUrl.value) return
+  if (!pngImageUrl.value) return
   
   try {
-    const response = await fetch(imageUrl.value)
+    const response = await fetch(pngImageUrl.value)
     const blob = await response.blob()
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'diagram.svg'
+    a.download = 'diagram.png'
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
     window.URL.revokeObjectURL(url)
+    showToastNotification('Image downloaded successfully!')
   } catch (e) {
     console.error('Failed to download:', e)
+    showToastNotification('Failed to download image')
   }
 }
 
-function openInBrowser() {
-  if (!imageUrl.value) return
-  window.open(imageUrl.value, '_blank')
+async function copyImage() {
+  if (!pngImageUrl.value) return
+  
+  try {
+    const response = await fetch(pngImageUrl.value)
+    const blob = await response.blob()
+    
+    // Convert to PNG if not already
+    const item = new ClipboardItem({ 'image/png': blob })
+    await navigator.clipboard.write([item])
+    
+    imageCopied.value = true
+    showToastNotification('Image copied to clipboard!')
+    setTimeout(() => {
+      imageCopied.value = false
+    }, 2000)
+  } catch (e) {
+    console.error('Failed to copy image:', e)
+    
+    // Fallback: try using canvas to convert SVG to PNG
+    try {
+      const svgResponse = await fetch(imageUrl.value)
+      const svgText = await svgResponse.text()
+      
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      const img = new Image()
+      
+      await new Promise((resolve, reject) => {
+        img.onload = resolve
+        img.onerror = reject
+        img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgText)))
+      })
+      
+      canvas.width = img.width
+      canvas.height = img.height
+      ctx?.drawImage(img, 0, 0)
+      
+      canvas.toBlob(async (blob) => {
+        if (blob) {
+          const item = new ClipboardItem({ 'image/png': blob })
+          await navigator.clipboard.write([item])
+          imageCopied.value = true
+          showToastNotification('Image copied to clipboard!')
+          setTimeout(() => {
+            imageCopied.value = false
+          }, 2000)
+        }
+      }, 'image/png')
+    } catch (fallbackError) {
+      console.error('Fallback also failed:', fallbackError)
+      showToastNotification('Failed to copy image to clipboard')
+    }
+  }
 }
 
 function findTextInCode(text: string): number {
