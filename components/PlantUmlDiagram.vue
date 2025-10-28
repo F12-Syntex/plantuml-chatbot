@@ -9,7 +9,35 @@
         @download="downloadImage"
         @copy-image="copyImage"
         @toggle-code="toggleCode"
+        @view-online="viewOnline"
       />
+
+      <!-- PlantUML Link Section -->
+      <div class="border-b border-base-300 bg-base-50 px-4 py-2">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-medium text-base-content/70">PlantUML URL:</span>
+          <a 
+            :href="onlineViewUrl" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            class="text-xs text-primary hover:text-primary-focus hover:underline font-mono truncate flex-1"
+          >
+            {{ onlineViewUrl }}
+          </a>
+          <button 
+            @click="copyUrl"
+            class="btn btn-xs btn-ghost"
+            :class="{ 'btn-success': urlCopied }"
+          >
+            <svg v-if="!urlCopied" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+          </button>
+        </div>
+      </div>
 
       <div class="p-4 bg-white relative overflow-x-auto max-w-full max-h-[40vh]">
         <div v-if="loading" class="flex flex-col items-center justify-center min-h-[200px] gap-3">
@@ -109,6 +137,7 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const copied = ref(false)
 const imageCopied = ref(false)
+const urlCopied = ref(false)
 const showToast = ref(false)
 const toastMessage = ref('')
 const currentCode = ref(props.code)
@@ -133,12 +162,20 @@ const encodedDiagram = computed(() => encodeCode(currentCode.value))
 
 const imageUrl = computed(() => {
   if (!encodedDiagram.value) return ''
+  // Standard Deflate compression (no prefix needed)
   return `https://www.plantuml.com/plantuml/svg/${encodedDiagram.value}`
 })
 
 const pngImageUrl = computed(() => {
   if (!encodedDiagram.value) return ''
+  // Standard Deflate compression (no prefix needed)
   return `https://www.plantuml.com/plantuml/png/${encodedDiagram.value}`
+})
+
+const onlineViewUrl = computed(() => {
+  if (!encodedDiagram.value) return ''
+  // Standard Deflate compression (no prefix needed)
+  return `https://www.plantuml.com/plantuml/uml/${encodedDiagram.value}`
 })
 
 function showToastNotification(message: string) {
@@ -147,6 +184,25 @@ function showToastNotification(message: string) {
   setTimeout(() => {
     showToast.value = false
   }, 2000)
+}
+
+function viewOnline() {
+  if (!onlineViewUrl.value) return
+  window.open(onlineViewUrl.value, '_blank')
+}
+
+async function copyUrl() {
+  try {
+    await navigator.clipboard.writeText(onlineViewUrl.value)
+    urlCopied.value = true
+    showToastNotification('URL copied to clipboard!')
+    setTimeout(() => {
+      urlCopied.value = false
+    }, 2000)
+  } catch (e) {
+    console.error('Failed to copy URL:', e)
+    showToastNotification('Failed to copy URL')
+  }
 }
 
 function applyTheme(theme: Partial<DiagramTheme>) {
