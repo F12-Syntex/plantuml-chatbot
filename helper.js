@@ -2,6 +2,32 @@ import fs from 'fs';
 import path from 'path';
 import { exec } from 'child_process';
 
+function sanitizeLinks(text) {
+  if (!text) return text;
+  // Match typical URLs, including protocol-relative //example.com/path
+  // This aims to avoid matching emails or bare domains without scheme.
+  const urlRegex = /\b((https?:)?\/\/[^\s)'"<>]+)\b/gi;
+
+  return text.replace(urlRegex, (match) => {
+    try {
+      // Normalize to a URL object; if protocol-relative, add http:
+      const normalized = match.startsWith('//') ? `http:${match}` : match;
+      const u = new URL(normalized);
+      const route = u.pathname && u.pathname !== '' ? u.pathname : '/';
+      return `${route} <LINK EMITED FOR SAFTEY>`;
+    } catch {
+      // If URL constructor fails, attempt a fallback for edge cases
+      // Extract path after domain if possible
+      const pathMatch = match.replace(/^(https?:)?\/\//i, '').split('/');
+      if (pathMatch.length > 1) {
+        const route = `/${pathMatch.slice(1).join('/')}`;
+        return `${route} <LINK EMITED FOR SAFTEY>`;
+      }
+      return `/ <LINK EMITED FOR SAFTEY>`;
+    }
+  });
+}
+
 function getAllFiles(dirPath, arrayOfFiles = [], isRoot = false) {
   const files = fs.readdirSync(dirPath);
 
@@ -121,6 +147,9 @@ function buildOutput(files) {
         finalContent = lines.slice(0, 300).join('\n') + '\n... (truncated after 300 lines)\n';
     }
 
+    // Sanitize links in the final content
+    finalContent = sanitizeLinks(finalContent);
+
     output += `File: ${filePath}\n`;
     output += `${finalContent}\n\n`;
   });
@@ -159,7 +188,9 @@ function buildTreeOutput(dirPath) {
   }
 
   recurse(dirPath, true);
-  return files.join('\n');
+  // Sanitize in case any dotted paths include links (unlikely)
+  const joined = files.join('\n');
+  return sanitizeLinks(joined);
 }
 
 function showHelp() {
