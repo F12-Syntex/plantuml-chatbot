@@ -52,7 +52,7 @@ function resetChat() {
   inputEl.value?.focus()
 }
 
-async function onSend() {
+async function onSend(additionalInstructions: string) {
   const text = draft.value.trim()
   if (!text || sending.value) return
   
@@ -73,7 +73,8 @@ async function onSend() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         messages: messages.value,
-        model: selectedModel
+        model: selectedModel,
+        additionalInstructions
       })
     })
 

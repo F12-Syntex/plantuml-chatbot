@@ -1,7 +1,31 @@
-export default defineEventHandler(async (event) => {
-  const body = await readBody(event)
-  const apiKey = process.env.OPENROUTER_API_KEY
+interface Message {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+}
 
+interface ChatRequest {
+  messages: Message[]
+  model?: string
+  additionalInstructions?: string
+}
+
+interface StoredUsageRecord {
+  timestamp: number
+  model: string
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  cost: number
+}
+
+interface UsageStats {
+  records: StoredUsageRecord[]
+}
+
+export default defineEventHandler(async (event) => {
+  const body = await readBody<ChatRequest>(event)
+  const apiKey = process.env.OPENROUTER_API_KEY
+  
   if (!apiKey) {
     throw createError({
       statusCode: 500,
@@ -9,90 +33,134 @@ export default defineEventHandler(async (event) => {
     })
   }
 
+  const storage = useStorage('data')
+  const selectedModel = body.model || await storage.getItem<string>('selected-model') || 'openai/gpt-4o-mini'
 
-  
+  const systemMessage = {
+    role: 'system' as const,
+    content: `You are a PlantUML diagram expert. Generate valid PlantUML code based on user descriptions.
+
+IMPORTANT FORMATTING RULES:
+1. Always wrap your PlantUML code in a code block with the language identifier "plantuml"
+2. NEVER use any other language identifier (not "uml", not "diagram", only "plantuml")
+3. Format must be exactly:
+\`\`\`plantuml
+@startuml
+... your diagram code ...
+@enduml
+\`\`\`
+
+4. Include proper PlantUML syntax (@startuml, @enduml)
+5. Keep diagrams simple and readable
+6. Use meaningful names and labels
+7. Add skinparam commands for better styling when appropriate${body.additionalInstructions ? '\n\nADDITIONAL INSTRUCTIONS:\n' + body.additionalInstructions : ''}`
+  }
+
+  const messagesWithSystem = [systemMessage, ...body.messages]
+
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.SITE_URL || 'http://localhost:3000',
+      'X-Title': 'PlantUML Chatbot',
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: body.model || 'openai/gpt-4o-mini',
-            messages: [
-        {
-          role: 'system',
-          content: `You are a PlantUML diagram expert. When users describe what they want, generate the complete PlantUML code.
-
-          Rules:
-          1. Always provide ONLY the raw PlantUML code starting with @startuml and ending with @enduml
-          2. DO NOT wrap the code in markdown code blocks or backticks
-          3. DO NOT add explanations before or after unless specifically requested
-          4. The code should be directly usable
-          5. Include helpful comments within the PlantUML syntax using ' for single-line comments
-          6. For complex diagrams, add brief structural comments
-          7. Always start fresh with complete code from @startuml to @enduml
-          8. When modifying existing diagrams, provide the FULL updated code from the beginning`
-                  },
-        ...body.messages
-      ],
-      max_tokens: body.max_tokens ?? 2048,
+      model: selectedModel,
+      messages: messagesWithSystem,
       stream: true
     })
   })
 
   if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
     throw createError({
       statusCode: response.status,
-      message: 'Failed to get response from OpenRouter'
+      message: errorData.error?.message || 'Failed to get response from OpenRouter'
     })
   }
 
-  if (!response.body) {
-    throw createError({
-      statusCode: 500,
-      message: 'No response body'
-    })
-  }
+  setResponseHeaders(event, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  })
 
-  setResponseHeader(event, 'Content-Type', 'text/event-stream')
-  setResponseHeader(event, 'Cache-Control', 'no-cache')
-  setResponseHeader(event, 'Connection', 'keep-alive')
-
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
+  let totalPromptTokens = 0
+  let totalCompletionTokens = 0
 
   const stream = new ReadableStream({
     async start(controller) {
+      const reader = response.body?.getReader()
+      if (!reader) {
+        controller.close()
+        return
+      }
+
+      const decoder = new TextDecoder()
+      let buffer = ''
+
       try {
-        let buffer = ''
-        
         while (true) {
           const { done, value } = await reader.read()
           if (done) break
-          
+
           buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
 
-          while (true) {
-            const lineEnd = buffer.indexOf('\n')
-            if (lineEnd === -1) break
+          for (const line of lines) {
+            const trimmed = line.trim()
+            if (!trimmed || !trimmed.startsWith('data: ')) continue
 
-            const line = buffer.slice(0, lineEnd).trim()
-            buffer = buffer.slice(lineEnd + 1)
+            const data = trimmed.slice(6)
+            if (data === '[DONE]') {
+              controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
+              continue
+            }
 
-            if (line) {
-              controller.enqueue(new TextEncoder().encode(line + '\n'))
+            try {
+              const parsed = JSON.parse(data)
+              
+              if (parsed.usage) {
+                totalPromptTokens = parsed.usage.prompt_tokens || 0
+                totalCompletionTokens = parsed.usage.completion_tokens || 0
+              }
+
+              controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`))
+            } catch (e) {
+              console.error('Parse error:', e)
             }
           }
         }
-
-        if (buffer.trim()) {
-          controller.enqueue(new TextEncoder().encode(buffer))
-        }
       } catch (error) {
         console.error('Stream error:', error)
-        controller.error(error)
       } finally {
+        if (totalPromptTokens > 0 || totalCompletionTokens > 0) {
+          const modelPricing = {
+            promptCostPer1M: 0.15,
+            completionCostPer1M: 0.6
+          }
+
+          const promptCost = (totalPromptTokens / 1_000_000) * modelPricing.promptCostPer1M
+          const completionCost = (totalCompletionTokens / 1_000_000) * modelPricing.completionCostPer1M
+          const totalCost = promptCost + completionCost
+
+          const usageRecord: StoredUsageRecord = {
+            timestamp: Date.now(),
+            model: selectedModel,
+            promptTokens: totalPromptTokens,
+            completionTokens: totalCompletionTokens,
+            totalTokens: totalPromptTokens + totalCompletionTokens,
+            cost: totalCost
+          }
+
+          const currentStats = await storage.getItem<UsageStats>('usage-stats') || { records: [] }
+          currentStats.records.push(usageRecord)
+          await storage.setItem('usage-stats', currentStats)
+        }
+
         controller.close()
       }
     }
