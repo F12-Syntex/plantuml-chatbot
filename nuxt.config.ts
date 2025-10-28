@@ -1,20 +1,21 @@
-// https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  modules: ['@nuxt/content', '@nuxtjs/tailwindcss'],
-  vue: {
-    compilerOptions: {
-      isCustomElement: (tag) => ['UseFetchDemo'].includes(tag),
-    },
+  compatibilityDate: '2024-11-01',
+  devtools: { enabled: true },
+
+  modules: [
+    '@nuxtjs/tailwindcss',
+    'unplugin-icons',
+  ],
+
+  app: {
+    head: {
+      title: 'PlantUML chatbot',
+      meta: [
+        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+        { charset: 'utf-8' },
+        { name: 'viewport', content: 'width=device-width, initial-scale=1' }
+      ]
+    }
   },
-  components: {
-    global: true,
-    dirs: ['~/components'],
-  },
-  content: {
-    // https://content.nuxtjs.org/api/configuration
-    highlight: {
-      preload: ['javascript', 'vue', 'html'],
-      theme: 'monokai',
-    },
-  },
-});
+  nitro: { preset: 'vercel' }
+})

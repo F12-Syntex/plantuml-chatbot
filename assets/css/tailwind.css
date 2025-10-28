@@ -1,3 +1,19 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Optional: small tweaks for the chat UI
+@layer components {
+  .chat-bubble {
+    @apply rounded-2xl px-4 py-3 text-sm leading-relaxed;
+  }
+  .chat-bubble-user {
+    @apply bg-primary text-dark;
+  }
+  .chat-bubble-bot {
+    @apply bg-secondary text-light;
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+} */
