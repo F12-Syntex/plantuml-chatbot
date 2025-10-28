@@ -5,6 +5,7 @@
       :messages="messages" 
       :sending="sending"
       :streaming-content="streamingContent"
+      :generating-diagram="generatingDiagram"
       @apply-suggestion="applySuggestion"
     />
     <ChatInput 
@@ -34,6 +35,7 @@ const messages = ref<Message[]>([])
 const draft = ref('')
 const sending = ref(false)
 const streamingContent = ref('')
+const generatingDiagram = ref(false)
 const messageListEl = ref<{ scrollToBottom: () => void } | null>(null)
 const inputEl = ref<{ focus: () => void; autoResize: () => void } | null>(null)
 
@@ -46,6 +48,7 @@ function resetChat() {
   messages.value = []
   draft.value = ''
   streamingContent.value = ''
+  generatingDiagram.value = false
   inputEl.value?.focus()
 }
 
@@ -57,6 +60,7 @@ async function onSend() {
   messages.value.push({ role: 'user', content: text })
   draft.value = ''
   streamingContent.value = ''
+  generatingDiagram.value = false
   
   await nextTick()
   messageListEl.value?.scrollToBottom()
@@ -80,6 +84,7 @@ async function onSend() {
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
+    let fullContent = ''
 
     while (true) {
       const { done, value } = await reader.read()
@@ -100,7 +105,15 @@ async function onSend() {
           const parsed = JSON.parse(data)
           const content = parsed.choices?.[0]?.delta?.content
           if (content) {
-            streamingContent.value += content
+            fullContent += content
+            
+            if (fullContent.includes('@startuml')) {
+              generatingDiagram.value = true
+              streamingContent.value = ''
+            } else {
+              streamingContent.value += content
+            }
+            
             await nextTick()
             messageListEl.value?.scrollToBottom()
           }
@@ -110,9 +123,10 @@ async function onSend() {
       }
     }
 
-    if (streamingContent.value) {
-      messages.value.push({ role: 'assistant', content: streamingContent.value })
+    if (fullContent) {
+      messages.value.push({ role: 'assistant', content: fullContent })
       streamingContent.value = ''
+      generatingDiagram.value = false
     }
   } catch (error) {
     console.error('Chat error:', error)
@@ -121,6 +135,7 @@ async function onSend() {
       content: 'Sorry, there was an error generating the diagram. Please try again.' 
     })
     streamingContent.value = ''
+    generatingDiagram.value = false
   } finally {
     sending.value = false
   }
@@ -133,4 +148,5 @@ onMounted(() => {
 
 watch(messages, () => nextTick(() => messageListEl.value?.scrollToBottom()))
 watch(streamingContent, () => nextTick(() => messageListEl.value?.scrollToBottom()))
+watch(generatingDiagram, () => nextTick(() => messageListEl.value?.scrollToBottom()))
 </script>

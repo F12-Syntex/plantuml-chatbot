@@ -9,7 +9,7 @@
         @toggle-code="toggleCode"
       />
 
-      <div class="p-4 bg-white relative overflow-x-auto max-w-full">
+      <div class="p-4 bg-white relative overflow-x-auto max-w-full max-h-[40vh]">
         <div v-if="loading" class="flex flex-col items-center justify-center min-h-[200px] gap-3">
           <span class="loading loading-spinner loading-lg text-primary"></span>
           <p class="text-sm text-base-content/60">Rendering diagram...</p>

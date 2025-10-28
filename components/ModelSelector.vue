@@ -81,7 +81,7 @@ const emit = defineEmits<{
 const models = ref<Model[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
-const currentModel = ref('openai/gpt-5')
+const currentModel = ref('anthropic/claude-sonnet-4.5')
 const searchQuery = ref('')
 
 const selectedModelData = computed(() => {

@@ -1,16 +1,17 @@
 <template>
   <div class="flex-1 overflow-y-auto" ref="messagesEl">
     <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-      <ChatWelcome v-if="messages.length === 0 && !streamingContent" @apply-suggestion="$emit('applySuggestion', $event)" />
+      <ChatWelcome v-if="messages.length === 0 && !streamingContent && !generatingDiagram" @apply-suggestion="$emit('applySuggestion', $event)" />
       
       <div v-else class="space-y-6 sm:space-y-8">
         <ChatMessage v-for="(m, i) in messages" :key="i" :message="m" />
+        <ChatDiagramGenerating v-if="generatingDiagram" />
         <ChatMessage 
-          v-if="streamingContent" 
+          v-else-if="streamingContent" 
           :message="{ role: 'assistant', content: streamingContent }" 
           :is-streaming="true"
         />
-        <ChatThinking v-if="sending && !streamingContent" />
+        <ChatThinking v-if="sending && !streamingContent && !generatingDiagram" />
       </div>
     </div>
   </div>
@@ -26,6 +27,7 @@ defineProps<{
   messages: Message[]
   sending: boolean
   streamingContent?: string
+  generatingDiagram?: boolean
 }>()
 
 defineEmits<{
