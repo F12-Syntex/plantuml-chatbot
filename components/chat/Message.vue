@@ -20,11 +20,14 @@
               {{ getTextAfterPlantUml(message.content) }}
             </p>
           </template>
-          <p v-else class="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words">{{ message.content }}</p>
+          <p v-else class="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words">
+            {{ message.content }}
+            <span v-if="isStreaming" class="inline-block w-2 h-4 bg-primary animate-pulse ml-1"></span>
+          </p>
         </div>
         <div class="flex items-center gap-2 mt-2 px-2">
           <span class="text-xs text-base-content/50">{{ formatTime(new Date()) }}</span>
-          <div class="flex gap-1">
+          <div v-if="!isStreaming" class="flex gap-1">
             <button @click="copyMessage(message.content)" class="btn btn-ghost btn-xs" title="Copy">
               <MdiContentCopy class="h-3 w-3 text-base-content" />
             </button>
@@ -63,6 +66,7 @@ interface Message {
 
 defineProps<{
   message: Message
+  isStreaming?: boolean
 }>()
 
 function extractPlantUml(content: string): string | null {
