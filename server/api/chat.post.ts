@@ -1,3 +1,57 @@
+interface UsageData {
+  model: string
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+  cost: number
+}
+
+interface StoredUsageRecord extends UsageData {
+  timestamp: number
+}
+
+interface UsageStats {
+  records: StoredUsageRecord[]
+}
+
+function calculateCost(model: string, promptTokens: number, completionTokens: number): number {
+  // Extract pricing from the model's pricing object if available
+  // These are per-million-token prices, so we divide by 1,000,000
+  const pricing = {
+    'openai/gpt-5-mini': { input: 0.00000025, output: 0.000002 },
+    'openai/gpt-5': { input: 0.00000125, output: 0.00001 },
+    'anthropic/claude-3.5-sonnet': { input: 0.000003, output: 0.000015 },
+    'anthropic/claude-3-opus': { input: 0.000015, output: 0.000075 },
+    'default': { input: 0.000001, output: 0.000002 }
+  }
+  
+  const modelPricing = pricing[model as keyof typeof pricing] || pricing['default']
+  const inputCost = promptTokens * modelPricing.input
+  const outputCost = completionTokens * modelPricing.output
+  return inputCost + outputCost
+}
+
+async function saveUsage(usage: UsageData) {
+  const storage = useStorage('data')
+  let usageData = await storage.getItem<UsageStats>('usage-stats')
+  
+  if (!usageData || !usageData.records) {
+    usageData = { records: [] }
+  }
+  
+  usageData.records.push({
+    timestamp: Date.now(),
+    ...usage
+  })
+  
+  // Keep only last 1000 records
+  if (usageData.records.length > 1000) {
+    usageData.records = usageData.records.slice(-1000)
+  }
+  
+  await storage.setItem('usage-stats', usageData)
+}
+
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   const { messages, model } = body
@@ -20,7 +74,7 @@ export default defineEventHandler(async (event) => {
       'X-Title': 'PlantUML Chat'
     },
     body: JSON.stringify({
-      model: model || 'anthropic/claude-3.5-sonnet',
+      model: model || 'openai/gpt-5-mini',
       messages: [
         {
           role: 'system',
@@ -50,5 +104,23 @@ Rules:
   }
 
   const data = await response.json()
+  
+  // Save usage stats
+  if (data.usage) {
+    const usage: UsageData = {
+      model: model || 'openai/gpt-5-mini',
+      promptTokens: data.usage.prompt_tokens || 0,
+      completionTokens: data.usage.completion_tokens || 0,
+      totalTokens: data.usage.total_tokens || 0,
+      cost: calculateCost(
+        model || 'openai/gpt-5-mini',
+        data.usage.prompt_tokens || 0,
+        data.usage.completion_tokens || 0
+      )
+    }
+    
+    await saveUsage(usage)
+  }
+  
   return data
 })

@@ -25,6 +25,7 @@
                   type="button"
                   @click="clearInput"
                   class="btn btn-ghost btn-circle btn-xs sm:btn-sm hover:bg-base-300/50 transition-all"
+                  title="Clear input"
                 >
                   <MdiClose class="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </button>
@@ -37,9 +38,20 @@
             :disabled="!modelValue.trim() || disabled"
             class="btn btn-primary btn-circle h-11 w-11 sm:h-14 sm:w-14 min-h-0 shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:scale-100"
             :class="{'animate-pulse': disabled}"
+            title="Send message"
           >
             <MdiSend v-if="!disabled" class="h-5 w-5 sm:h-6 sm:w-6" />
             <span v-else class="loading loading-spinner loading-sm sm:loading-md" />
+          </button>
+
+          <button
+            type="button"
+            @click="resetChat"
+            class="btn btn-outline btn-circle h-11 w-11 sm:h-14 sm:w-14 min-h-0 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
+            :disabled="disabled"
+            title="Reset chat"
+          >
+            <MdiRestart class="h-5 w-5 sm:h-6 sm:w-6" />
           </button>
         </div>
       </form>
@@ -50,6 +62,7 @@
 <script setup lang="ts">
 import MdiClose from '~icons/mdi/close'
 import MdiSend from '~icons/mdi/send'
+import MdiRestart from '~icons/mdi/restart'
 
 const modelValue = defineModel<string>({ required: true })
 
@@ -59,6 +72,7 @@ defineProps<{
 
 const emit = defineEmits<{
   submit: []
+  reset: []
 }>()
 
 const inputEl = ref<HTMLTextAreaElement | null>(null)
@@ -80,6 +94,11 @@ function handleSubmit() {
 function clearInput() {
   modelValue.value = ''
   nextTick(() => autoResize())
+}
+
+function resetChat() {
+  emit('reset')
+  clearInput()
 }
 
 function focus() {

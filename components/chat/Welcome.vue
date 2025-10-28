@@ -1,10 +1,10 @@
 <template>
   <div class="flex flex-col items-center justify-center min-h-[calc(100vh-16rem)]">
     <div class="text-center space-y-4 mb-8">
-      <div class="inline-flex items-center justify-center w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 mb-4">
+      <div class="inline-flex items-center justify-center w-20 h-20 sm:w-24 sm:h-24 rounded-2xl mb-4">
         <MdiChartBoxOutline class="text-5xl sm:text-6xl text-primary" />
       </div>
-      <h2 class="text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+      <h2 class="text-3xl sm:text-4xl lg:text-5xl font-bold bg-primary pb-2 bg-clip-text text-transparent">
         Let's Create Diagrams
       </h2>
       <p class="text-sm sm:text-base lg:text-lg text-base-content/70 max-w-lg mx-auto px-4 py-4">

@@ -11,11 +11,7 @@
       v-model="draft" 
       :disabled="sending"
       @submit="onSend"
-    />
-
-    <ModelSelector 
-      v-model="modelDrawerOpen"
-      @model-changed="handleModelChanged"
+      @reset="resetChat"
     />
   </div>
 </template>
@@ -38,15 +34,15 @@ const draft = ref('')
 const sending = ref(false)
 const messageListEl = ref<{ scrollToBottom: () => void } | null>(null)
 const inputEl = ref<{ focus: () => void; autoResize: () => void } | null>(null)
-const modelDrawerOpen = ref(false)
-const selectedModel = ref('openai/gpt-5-mini')
-
-function handleModelChanged(modelId: string) {
-  selectedModel.value = modelId
-}
 
 function applySuggestion(suggestion: Suggestion) {
   draft.value = suggestion.prompt
+  inputEl.value?.focus()
+}
+
+function resetChat() {
+  messages.value = []
+  draft.value = ''
   inputEl.value?.focus()
 }
 
@@ -63,11 +59,12 @@ async function onSend() {
   inputEl.value?.autoResize()
 
   try {
+    const selectedModel = localStorage.getItem('selected-model') || 'openai/gpt-5-mini'
     const response = await $fetch<{ choices: Array<{ message: { content: string } }> }>('/api/chat', {
       method: 'POST',
       body: {
         messages: messages.value,
-        model: selectedModel.value
+        model: selectedModel
       }
     })
     
@@ -91,14 +88,7 @@ async function onSend() {
 onMounted(() => {
   messageListEl.value?.scrollToBottom()
   inputEl.value?.focus()
-  
-  const savedModel = localStorage.getItem('selected-model')
-  if (savedModel) {
-    selectedModel.value = savedModel
-  }
 })
 
 watch(messages, () => nextTick(() => messageListEl.value?.scrollToBottom()))
-
-defineExpose({ modelDrawerOpen })
 </script>
