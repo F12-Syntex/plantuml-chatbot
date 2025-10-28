@@ -6,6 +6,7 @@
         @theme="themeDrawerOpen = true"
         @copy="copyCode"
         @download="downloadImage"
+        @open="openInBrowser"
         @toggle-code="toggleCode"
       />
 
@@ -193,6 +194,11 @@ async function downloadImage() {
   } catch (e) {
     console.error('Failed to download:', e)
   }
+}
+
+function openInBrowser() {
+  if (!imageUrl.value) return
+  window.open(imageUrl.value, '_blank')
 }
 
 function findTextInCode(text: string): number {

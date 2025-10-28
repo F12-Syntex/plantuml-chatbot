@@ -123,7 +123,7 @@ const additionalInstructions = ref('')
 const DEFAULT_INSTRUCTIONS = `1: always troubleshoot, if successful go to the next instruction else rollback
 2: no side notes, notes are to be added in the node itself
 3: all con as WDPI-CON. All ctr as WDPI-CTR
-4: don't change the colour`
+4: don't change the colour or theme, please keep the formatting simple and consistent`
 
 function autoResize() {
   if (inputEl.value) {

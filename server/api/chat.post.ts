@@ -38,11 +38,11 @@ IMPORTANT FORMATTING RULES:
 1. Always wrap your PlantUML code in a code block with the language identifier "plantuml"
 2. NEVER use any other language identifier (not "uml", not "diagram", only "plantuml")
 3. Format must be exactly:
-\`\`\`plantuml
 @startuml
 ... your diagram code ...
 @enduml
-\`\`\`
+
+don't include \`\`\`plantuml or any other code blocks
 
 4. Include proper PlantUML syntax (@startuml, @enduml)
 5. Keep diagrams simple and readable
