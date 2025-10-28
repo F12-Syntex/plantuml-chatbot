@@ -1,7 +1,12 @@
 <template>
   <ThemeDrawer :model-value="modelValue" @update:model-value="$emit('update:modelValue', $event)" title="Select AI Model">
     <template #header>
-      <div class="mt-3">
+      <div class="mt-3 space-y-3">
+        <div v-if="selectedModelData" class="p-3 rounded-lg bg-primary/10 border border-primary/20">
+          <div class="text-xs text-base-content/60 mb-1">Currently selected:</div>
+          <div class="font-semibold text-sm text-base-content">{{ selectedModelData.name }}</div>
+          <div class="text-xs text-base-content/50 mt-1">{{ selectedModelData.id }}</div>
+        </div>
         <input 
           v-model="searchQuery"
           type="text" 
@@ -76,8 +81,12 @@ const emit = defineEmits<{
 const models = ref<Model[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
-const currentModel = ref('anthropic/claude-3.5-sonnet')
+const currentModel = ref('anthropic/claude-3.5-haiku')
 const searchQuery = ref('')
+
+const selectedModelData = computed(() => {
+  return models.value.find(m => m.id === currentModel.value)
+})
 
 const filteredModels = computed(() => {
   if (!searchQuery.value) return models.value

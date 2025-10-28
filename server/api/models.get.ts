@@ -27,7 +27,7 @@ export default defineEventHandler(async () => {
   // Filter for text-only models
   const textOnlyModels = data.data.filter((model: any) => {
     const modality = model.architecture?.modality || ''
-    return modality.startsWith('text->') || modality === 'text->text'
+    return modality.startsWith('text->') || modality.includes('->text')
   })
   
   return textOnlyModels
