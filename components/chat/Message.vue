@@ -6,14 +6,17 @@
           <MdiRobotOutline class="text-lg sm:text-xl text-secondary-content" />
         </div>
       </div>
-      <div class="flex-1 min-w-0">
+      <div class="flex-1 min-w-0 w-full">
         <div class="bg-base-100 border border-base-300 rounded-2xl shadow-sm p-4 sm:p-5">
           <template v-if="extractPlantUml(message.content)">
             <p v-if="getTextBeforePlantUml(message.content)" class="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words mb-4">
               {{ getTextBeforePlantUml(message.content) }}
             </p>
-            <PlantUmlDiagram :code="extractPlantUml(message.content)!" />
-            <p v-if="getTextAfterPlantUml(message.content)" class="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words mt-4">
+            <div class="mb-4">
+              <PlantUmlDiagram :code="extractPlantUml(message.content)!" />
+            </div>
+            <CodeBlock :code="extractPlantUml(message.content)!" title="PlantUML Code" class="mb-4" />
+            <p v-if="getTextAfterPlantUml(message.content)" class="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words">
               {{ getTextAfterPlantUml(message.content) }}
             </p>
           </template>
@@ -36,7 +39,7 @@
           <MdiAccount class="text-lg sm:text-xl text-primary-content" />
         </div>
       </div>
-      <div class="flex-1 min-w-0">
+      <div class="flex-1 min-w-0 w-full">
         <div class="bg-gradient-to-br from-primary to-primary/90 text-primary-content rounded-2xl shadow-md p-4 sm:p-5">
           <p class="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words">{{ message.content }}</p>
         </div>

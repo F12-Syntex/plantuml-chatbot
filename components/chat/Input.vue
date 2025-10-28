@@ -1,53 +1,48 @@
 <template>
-  <div class="border-t border-base-300 bg-base-100/95 backdrop-blur-lg sticky bottom-0">
-    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
+  <div class="border-t border-base-300/50 bg-gradient-to-t from-base-100 via-base-100/98 to-base-100/95 backdrop-blur-xl sticky bottom-0 shadow-2xl">
+    <div class="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-6">
       <form @submit.prevent="handleSubmit" class="relative">
-        <div class="flex gap-2 sm:gap-3 items-end">
-          <div class="flex-1 relative">
-            <textarea
-              v-model="modelValue"
-              rows="1"
-              placeholder="Ask me to create a diagram..."
-              @input="autoResize"
-              @keydown.enter.exact.prevent="handleSubmit"
-              ref="inputEl"
-              class="textarea textarea-bordered w-full resize-none text-sm sm:text-base pr-12 sm:pr-24 py-3 sm:py-4 leading-relaxed focus:outline-none focus:border-primary transition-colors bg-base-100"
-              :class="{'max-h-32 sm:max-h-40': true}"
-              :disabled="disabled"
-            />
-            <div class="absolute bottom-3 right-3 flex items-center gap-2">
-              <span class="text-xs text-base-content/40 hidden sm:inline">{{ modelValue.length }}/2000</span>
-              <button
-                v-if="modelValue.trim()"
-                type="button"
-                @click="modelValue = ''"
-                class="btn btn-ghost btn-circle btn-xs"
-              >
-                <MdiClose class="h-4 w-4 text-base-content" />
-              </button>
+        <div class="flex gap-2 items-end">
+          <div class="flex-1 relative group">
+            <div class="absolute inset-0 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-2xl sm:rounded-3xl blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
+            <div class="relative bg-base-200/80 rounded-2xl sm:rounded-3xl border border-base-300/50 group-focus-within:border-primary/50 transition-all duration-300 shadow-lg group-focus-within:shadow-2xl">
+              <textarea
+                v-model="modelValue"
+                rows="1"
+                placeholder="Describe your diagram idea..."
+                @input="autoResize"
+                @keydown.enter.exact.prevent="handleSubmit"
+                ref="inputEl"
+                class="w-full resize-none bg-transparent px-4 sm:px-6 py-3 sm:py-4 pr-10 sm:pr-28 text-sm sm:text-base leading-relaxed focus:outline-none placeholder:text-base-content/40 max-h-32 sm:max-h-48 rounded-2xl sm:rounded-3xl"
+                :disabled="disabled"
+              />
+              <div class="absolute bottom-2 sm:bottom-3 right-2 sm:right-3 flex items-center gap-1.5 sm:gap-2">
+                <div v-if="modelValue.length > 0" class="badge badge-ghost badge-xs sm:badge-sm font-mono hidden sm:flex" :class="modelValue.length > 1800 ? 'badge-warning' : 'badge-ghost'">
+                  {{ modelValue.length }}/2000
+                </div>
+                <button
+                  v-if="modelValue.trim()"
+                  type="button"
+                  @click="clearInput"
+                  class="btn btn-ghost btn-circle btn-xs sm:btn-sm hover:bg-base-300/50 transition-all"
+                >
+                  <MdiClose class="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                </button>
+              </div>
             </div>
           </div>
           
           <button
             type="submit"
             :disabled="!modelValue.trim() || disabled"
-            class="btn btn-primary btn-circle sm:btn-md btn-sm shadow-lg hover:shadow-xl transition-all"
+            class="btn btn-primary btn-circle h-11 w-11 sm:h-14 sm:w-14 min-h-0 shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:scale-100"
+            :class="{'animate-pulse': disabled}"
           >
-            <MdiSend v-if="!disabled" class="h-5 w-5 sm:h-6 sm:w-6 text-primary-content" />
-            <span v-else class="loading loading-spinner loading-sm"></span>
+            <MdiSend v-if="!disabled" class="h-5 w-5 sm:h-6 sm:w-6" />
+            <span v-else class="loading loading-spinner loading-sm sm:loading-md" />
           </button>
         </div>
       </form>
-      
-      <div class="mt-3 flex items-center justify-center gap-4 text-xs text-base-content/50">
-        <span class="hidden sm:inline flex items-center gap-1">
-          <kbd class="kbd kbd-xs">Enter</kbd> to send
-        </span>
-        <span class="hidden sm:inline flex items-center gap-1">
-          <kbd class="kbd kbd-xs">Shift</kbd> + <kbd class="kbd kbd-xs">Enter</kbd> for new line
-        </span>
-        <span class="sm:hidden">Tap send to submit</span>
-      </div>
     </div>
   </div>
 </template>
@@ -71,7 +66,7 @@ const inputEl = ref<HTMLTextAreaElement | null>(null)
 function autoResize() {
   if (inputEl.value) {
     inputEl.value.style.height = 'auto'
-    const maxHeight = window.innerWidth < 640 ? 128 : 160
+    const maxHeight = window.innerWidth < 640 ? 128 : 192
     inputEl.value.style.height = `${Math.min(inputEl.value.scrollHeight, maxHeight)}px`
   }
 }
@@ -80,6 +75,11 @@ function handleSubmit() {
   if (modelValue.value.trim()) {
     emit('submit')
   }
+}
+
+function clearInput() {
+  modelValue.value = ''
+  nextTick(() => autoResize())
 }
 
 function focus() {

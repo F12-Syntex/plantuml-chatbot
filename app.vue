@@ -8,7 +8,12 @@
           <span class="font-bold text-base sm:text-xl xs:hidden">PML</span>
         </NuxtLink>
       </div>
-      <div class="flex-none">
+      <div class="flex-none gap-2">
+        <button @click="modelDrawerOpen = true" class="btn btn-ghost btn-square btn-sm sm:btn-md">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+          </svg>
+        </button>
         <button @click="themeDrawerOpen = true" class="btn btn-ghost btn-square btn-sm sm:btn-md">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
@@ -22,12 +27,18 @@
     </div>
 
     <AppThemeSwitcher v-model="themeDrawerOpen" @theme-changed="currentTheme = $event" />
+    <ModelSelector v-model="modelDrawerOpen" @model-changed="handleModelChange" />
   </div>
 </template>
 
 <script setup lang="ts">
 const currentTheme = ref('dark')
 const themeDrawerOpen = ref(false)
+const modelDrawerOpen = ref(false)
+
+function handleModelChange(modelId: string) {
+  console.log('Selected model:', modelId)
+}
 
 watch(currentTheme, (newTheme) => {
   if (import.meta.client) {

@@ -12,6 +12,11 @@
       :disabled="sending"
       @submit="onSend"
     />
+
+    <ModelSelector 
+      v-model="modelDrawerOpen"
+      @model-changed="handleModelChanged"
+    />
   </div>
 </template>
 
@@ -33,6 +38,12 @@ const draft = ref('')
 const sending = ref(false)
 const messageListEl = ref<{ scrollToBottom: () => void } | null>(null)
 const inputEl = ref<{ focus: () => void; autoResize: () => void } | null>(null)
+const modelDrawerOpen = ref(false)
+const selectedModel = ref('openai/gpt-5-mini')
+
+function handleModelChanged(modelId: string) {
+  selectedModel.value = modelId
+}
 
 function applySuggestion(suggestion: Suggestion) {
   draft.value = suggestion.prompt
@@ -51,36 +62,43 @@ async function onSend() {
   messageListEl.value?.scrollToBottom()
   inputEl.value?.autoResize()
 
-  setTimeout(async () => {
-    const sample = `Here's a sample PlantUML sequence diagram:
-
-@startuml
-actor User
-participant "Web App" as App
-participant "Server" as S
-database "Database" as DB
-
-User -> App: Enter diagram request
-App -> S: POST /render
-S -> DB: Fetch template
-DB --> S: Return template
-S --> App: SVG URL
-App --> User: Display diagram
-@enduml
-
-This diagram shows the flow of a diagram generation request. You can customize it further by adding more participants, messages, or styling options.`
+  try {
+    const response = await $fetch<{ choices: Array<{ message: { content: string } }> }>('/api/chat', {
+      method: 'POST',
+      body: {
+        messages: messages.value,
+        model: selectedModel.value
+      }
+    })
     
-    messages.value.push({ role: 'assistant', content: sample })
-    await nextTick()
-    messageListEl.value?.scrollToBottom()
+    const content = response.choices[0]?.message?.content
+    if (content) {
+      messages.value.push({ role: 'assistant', content })
+      await nextTick()
+      messageListEl.value?.scrollToBottom()
+    }
+  } catch (error) {
+    console.error('Chat error:', error)
+    messages.value.push({ 
+      role: 'assistant', 
+      content: 'Sorry, there was an error generating the diagram. Please try again.' 
+    })
+  } finally {
     sending.value = false
-  }, 1500)
+  }
 }
 
 onMounted(() => {
   messageListEl.value?.scrollToBottom()
   inputEl.value?.focus()
+  
+  const savedModel = localStorage.getItem('selected-model')
+  if (savedModel) {
+    selectedModel.value = savedModel
+  }
 })
 
 watch(messages, () => nextTick(() => messageListEl.value?.scrollToBottom()))
+
+defineExpose({ modelDrawerOpen })
 </script>
