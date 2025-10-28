@@ -1,6 +1,7 @@
 <template>
   <ThemeDrawer :model-value="modelValue" @update:model-value="$emit('update:modelValue', $event)" title="AI Usage Stats">
     <div class="space-y-4">
+      <!-- Credit summary card -->
       <div class="stats stats-vertical sm:stats-horizontal shadow w-full">
         <div class="stat">
           <div class="stat-figure text-success">
@@ -10,41 +11,20 @@
           </div>
           <div class="stat-title">Remaining Credits</div>
           <div class="stat-value text-success">${{ remainingCredits.toFixed(2) }}</div>
-          <div class="stat-desc">${{ credits.total_credits?.toFixed(2) || '0.00' }} total purchased</div>
-        </div>
-
-        <div class="stat">
-          <div class="stat-figure text-primary">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <div class="stat-title">Total Spent</div>
-          <div class="stat-value text-primary">${{ stats.totalCost.toFixed(4) }}</div>
-          <div class="stat-desc">Session usage</div>
-        </div>
-
-        <div class="stat">
-          <div class="stat-figure text-secondary">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
-          </div>
-          <div class="stat-title">Messages Sent</div>
-          <div class="stat-value text-secondary">{{ stats.totalMessages }}</div>
-          <div class="stat-desc">Total conversations</div>
+          <div class="stat-desc">${{ (credits?.total_credits ?? 0).toFixed(2) }} total purchased</div>
         </div>
       </div>
 
+      <!-- Credit Usage -->
       <div class="card bg-base-200">
         <div class="card-body">
           <h3 class="card-title text-sm">Credit Usage</h3>
           <div class="space-y-2">
             <div class="flex justify-between text-sm">
               <span>Used</span>
-              <span class="font-mono">${{ credits.total_usage?.toFixed(4) || '0.0000' }}</span>
+              <span class="font-mono">${{ (credits?.total_usage ?? 0).toFixed(4) }}</span>
             </div>
-            <progress class="progress progress-warning" :value="credits.total_usage || 0" :max="credits.total_credits || 100"></progress>
+            <progress class="progress progress-warning" :value="credits?.total_usage ?? 0" :max="credits?.total_credits ?? 100"></progress>
             <div class="flex justify-between text-xs opacity-70">
               <span>{{ usagePercentage.toFixed(1) }}% consumed</span>
               <span>${{ remainingCredits.toFixed(2) }} left</span>
@@ -53,54 +33,7 @@
         </div>
       </div>
 
-      <div class="card bg-base-200">
-        <div class="card-body">
-          <h3 class="card-title text-sm">Token Usage</h3>
-          <div class="space-y-3">
-            <div>
-              <div class="flex justify-between text-xs mb-1">
-                <span>Prompt Tokens</span>
-                <span class="font-mono">{{ stats.totalPromptTokens.toLocaleString() }}</span>
-              </div>
-              <progress class="progress progress-primary" :value="stats.totalPromptTokens" max="1000000"></progress>
-            </div>
-            <div>
-              <div class="flex justify-between text-xs mb-1">
-                <span>Completion Tokens</span>
-                <span class="font-mono">{{ stats.totalCompletionTokens.toLocaleString() }}</span>
-              </div>
-              <progress class="progress progress-secondary" :value="stats.totalCompletionTokens" max="1000000"></progress>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card bg-base-200">
-        <div class="card-body">
-          <h3 class="card-title text-sm">Recent Usage</h3>
-          <div class="overflow-x-auto">
-            <table class="table table-xs">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Model</th>
-                  <th>Tokens</th>
-                  <th>Cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(usage, i) in stats.recentUsage" :key="i" class="hover">
-                  <td class="font-mono text-xs">{{ formatDate(usage.timestamp) }}</td>
-                  <td class="text-xs truncate max-w-[120px]">{{ usage.model }}</td>
-                  <td class="font-mono text-xs">{{ usage.tokens }}</td>
-                  <td class="font-mono text-xs">${{ usage.cost.toFixed(6) }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
+      <!-- Actions -->
       <div class="flex gap-2">
         <button @click="refreshStats" class="btn btn-primary btn-sm flex-1">Refresh</button>
         <button @click="exportStats" class="btn btn-outline btn-sm flex-1">Export Data</button>
@@ -119,7 +52,7 @@ interface UsageRecord {
   cost: number
 }
 
-interface UsageStats {
+interface LocalStats {
   totalCost: number
   totalMessages: number
   totalPromptTokens: number
@@ -142,7 +75,8 @@ const emit = defineEmits<{
   'update:modelValue': [value: boolean]
 }>()
 
-const stats = ref<UsageStats>({
+const credits = ref<Credits | null>(null)
+const localStats = ref<LocalStats>({
   totalCost: 0,
   totalMessages: 0,
   totalPromptTokens: 0,
@@ -150,26 +84,31 @@ const stats = ref<UsageStats>({
   recentUsage: []
 })
 
-const credits = ref<Credits>({})
-
 const remainingCredits = computed(() => {
-  const total = credits.value.total_credits || 0
-  const used = credits.value.total_usage || 0
+  const total = credits.value?.total_credits ?? 0
+  const used = credits.value?.total_usage ?? 0
   return Math.max(0, total - used)
 })
 
 const usagePercentage = computed(() => {
-  const total = credits.value.total_credits || 0
-  const used = credits.value.total_usage || 0
+  const total = credits.value?.total_credits ?? 0
+  const used = credits.value?.total_usage ?? 0
   return total > 0 ? (used / total) * 100 : 0
 })
 
-async function loadStats() {
-  try {
-    const data = await $fetch<UsageStats>('/api/usage-stats')
-    stats.value = data
-  } catch (error) {
-    console.error('Failed to load stats:', error)
+function loadLocalStats() {
+  if (process.client) {
+    const stored = localStorage.getItem('usage-stats')
+    if (stored) {
+      const records: UsageRecord[] = JSON.parse(stored)
+      localStats.value = {
+        totalCost: records.reduce((sum, r) => sum + r.cost, 0),
+        totalMessages: records.length,
+        totalPromptTokens: records.reduce((sum, r) => sum + r.promptTokens, 0),
+        totalCompletionTokens: records.reduce((sum, r) => sum + r.completionTokens, 0),
+        recentUsage: records.slice(-20).reverse()
+      }
+    }
   }
 }
 
@@ -183,13 +122,13 @@ async function loadCredits() {
 }
 
 function refreshStats() {
-  loadStats()
+  loadLocalStats()
   loadCredits()
 }
 
 function exportStats() {
   const exportData = {
-    stats: stats.value,
+    stats: localStats.value,
     credits: credits.value,
     exportDate: new Date().toISOString()
   }
@@ -212,21 +151,40 @@ function formatDate(timestamp: number): string {
   })
 }
 
+function addUsageRecord(model: string, promptTokens: number, completionTokens: number, cost: number) {
+  if (!process.client) return
+  
+  const record: UsageRecord = {
+    timestamp: Date.now(),
+    model,
+    tokens: promptTokens + completionTokens,
+    promptTokens,
+    completionTokens,
+    cost
+  }
+  
+  const stored = localStorage.getItem('usage-stats')
+  const records: UsageRecord[] = stored ? JSON.parse(stored) : []
+  records.push(record)
+  localStorage.setItem('usage-stats', JSON.stringify(records))
+  
+  loadLocalStats()
+}
+
 onMounted(() => {
-  loadStats()
+  loadLocalStats()
   loadCredits()
 })
 
-// Auto-refresh stats when drawer opens
 watch(
   () => props.modelValue,
   (isOpen) => {
     if (isOpen) {
-      loadStats()
+      loadLocalStats()
       loadCredits()
     }
   }
 )
 
-defineExpose({ loadStats, loadCredits })
+defineExpose({ loadLocalStats, loadCredits, addUsageRecord })
 </script>

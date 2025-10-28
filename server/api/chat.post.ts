@@ -9,17 +9,11 @@ interface ChatRequest {
   additionalInstructions?: string
 }
 
-interface StoredUsageRecord {
-  timestamp: number
+interface UsageData {
   model: string
   promptTokens: number
   completionTokens: number
   totalTokens: number
-  cost: number
-}
-
-interface UsageStats {
-  records: StoredUsageRecord[]
 }
 
 export default defineEventHandler(async (event) => {
@@ -87,8 +81,7 @@ IMPORTANT FORMATTING RULES:
     'Connection': 'keep-alive'
   })
 
-  let totalPromptTokens = 0
-  let totalCompletionTokens = 0
+  let usageData: UsageData | null = null
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -115,52 +108,34 @@ IMPORTANT FORMATTING RULES:
             if (!trimmed || !trimmed.startsWith('data: ')) continue
 
             const data = trimmed.slice(6)
-            if (data === '[DONE]') {
-              controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
-              continue
-            }
-
-            try {
-              const parsed = JSON.parse(data)
-              
-              if (parsed.usage) {
-                totalPromptTokens = parsed.usage.prompt_tokens || 0
-                totalCompletionTokens = parsed.usage.completion_tokens || 0
+            
+            if (data !== '[DONE]') {
+              try {
+                const parsed = JSON.parse(data)
+                
+                if (parsed.usage) {
+                  usageData = {
+                    model: selectedModel,
+                    promptTokens: parsed.usage.prompt_tokens || 0,
+                    completionTokens: parsed.usage.completion_tokens || 0,
+                    totalTokens: (parsed.usage.prompt_tokens || 0) + (parsed.usage.completion_tokens || 0)
+                  }
+                }
+              } catch (e) {
+                console.error('Parse error:', e)
               }
-
-              controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`))
-            } catch (e) {
-              console.error('Parse error:', e)
             }
+
+            controller.enqueue(new TextEncoder().encode(`data: ${data}\n\n`))
           }
         }
       } catch (error) {
         console.error('Stream error:', error)
       } finally {
-        if (totalPromptTokens > 0 || totalCompletionTokens > 0) {
-          const modelPricing = {
-            promptCostPer1M: 0.15,
-            completionCostPer1M: 0.6
-          }
-
-          const promptCost = (totalPromptTokens / 1_000_000) * modelPricing.promptCostPer1M
-          const completionCost = (totalCompletionTokens / 1_000_000) * modelPricing.completionCostPer1M
-          const totalCost = promptCost + completionCost
-
-          const usageRecord: StoredUsageRecord = {
-            timestamp: Date.now(),
-            model: selectedModel,
-            promptTokens: totalPromptTokens,
-            completionTokens: totalCompletionTokens,
-            totalTokens: totalPromptTokens + totalCompletionTokens,
-            cost: totalCost
-          }
-
-          const currentStats = await storage.getItem<UsageStats>('usage-stats') || { records: [] }
-          currentStats.records.push(usageRecord)
-          await storage.setItem('usage-stats', currentStats)
+        if (usageData) {
+          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ type: 'usage', data: usageData })}\n\n`))
         }
-
+        controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'))
         controller.close()
       }
     }
