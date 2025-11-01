@@ -8,7 +8,21 @@
       </div>
       <div class="flex-1 min-w-0 w-full">
         <div class="bg-base-100 border border-base-300 rounded-2xl shadow-sm p-4 sm:p-5">
-          <template v-if="extractPlantUml(message.content)">
+          <template v-if="extractBusinessCard(message.content)">
+            <p v-if="getTextBeforeBusinessCard(message.content)" class="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words mb-4">
+              {{ getTextBeforeBusinessCard(message.content) }}
+            </p>
+            <div class="mb-4">
+              <BusinessCard
+                :front-code="extractBusinessCard(message.content)!.front"
+                :back-code="extractBusinessCard(message.content)!.back"
+              />
+            </div>
+            <p v-if="getTextAfterBusinessCard(message.content)" class="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words">
+              {{ getTextAfterBusinessCard(message.content) }}
+            </p>
+          </template>
+          <template v-else-if="extractPlantUml(message.content)">
             <p v-if="getTextBeforePlantUml(message.content)" class="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words mb-4">
               {{ getTextBeforePlantUml(message.content) }}
             </p>
@@ -84,6 +98,31 @@ function getTextAfterPlantUml(content: string): string {
   const match = content.match(/@enduml/)
   if (!match || match.index === undefined) return ''
   return content.substring(match.index + 8).trim()
+}
+
+function extractBusinessCard(content: string): { front: string; back: string } | null {
+  const frontMatch = content.match(/<!--BUSINESS_CARD_FRONT-->([\s\S]*?)<!--\/BUSINESS_CARD_FRONT-->/)
+  const backMatch = content.match(/<!--BUSINESS_CARD_BACK-->([\s\S]*?)<!--\/BUSINESS_CARD_BACK-->/)
+
+  if (frontMatch && backMatch) {
+    return {
+      front: frontMatch[1].trim(),
+      back: backMatch[1].trim()
+    }
+  }
+  return null
+}
+
+function getTextBeforeBusinessCard(content: string): string {
+  const match = content.match(/<!--BUSINESS_CARD_FRONT-->/)
+  if (!match || match.index === undefined) return ''
+  return content.substring(0, match.index).trim()
+}
+
+function getTextAfterBusinessCard(content: string): string {
+  const match = content.match(/<!--\/BUSINESS_CARD_BACK-->/)
+  if (!match || match.index === undefined) return ''
+  return content.substring(match.index + 29).trim()
 }
 
 async function copyMessage(text: string) {

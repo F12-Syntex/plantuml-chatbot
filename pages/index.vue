@@ -1,11 +1,12 @@
 <template>
   <div class="h-full flex flex-col bg-gradient-to-br from-base-100 to-base-200">
-    <ChatMessageList 
+    <ChatMessageList
       ref="messageListEl"
-      :messages="messages" 
+      :messages="messages"
       :sending="sending"
       :streaming-content="streamingContent"
       :generating-diagram="generatingDiagram"
+      :generating-business-card="generatingBusinessCard"
       @apply-suggestion="applySuggestion"
     />
     <ChatInput 
@@ -36,6 +37,7 @@ const draft = ref('')
 const sending = ref(false)
 const streamingContent = ref('')
 const generatingDiagram = ref(false)
+const generatingBusinessCard = ref(false)
 const messageListEl = ref<{ scrollToBottom: () => void } | null>(null)
 const inputEl = ref<{ focus: () => void; autoResize: () => void } | null>(null)
 
@@ -49,6 +51,7 @@ function resetChat() {
   draft.value = ''
   streamingContent.value = ''
   generatingDiagram.value = false
+  generatingBusinessCard.value = false
   inputEl.value?.focus()
 }
 
@@ -61,6 +64,7 @@ async function onSend(additionalInstructions: string) {
   draft.value = ''
   streamingContent.value = ''
   generatingDiagram.value = false
+  generatingBusinessCard.value = false
   
   await nextTick()
   messageListEl.value?.scrollToBottom()
@@ -107,14 +111,19 @@ async function onSend(additionalInstructions: string) {
           const content = parsed.choices?.[0]?.delta?.content
           if (content) {
             fullContent += content
-            
+
             if (fullContent.includes('@startuml')) {
               generatingDiagram.value = true
+              generatingBusinessCard.value = false
               streamingContent.value = ''
-            } else {
+            } else if (fullContent.includes('<!--BUSINESS_CARD_FRONT-->')) {
+              generatingBusinessCard.value = true
+              generatingDiagram.value = false
+              streamingContent.value = ''
+            } else if (!generatingDiagram.value && !generatingBusinessCard.value) {
               streamingContent.value += content
             }
-            
+
             await nextTick()
             messageListEl.value?.scrollToBottom()
           }
@@ -128,6 +137,7 @@ async function onSend(additionalInstructions: string) {
       messages.value.push({ role: 'assistant', content: fullContent })
       streamingContent.value = ''
       generatingDiagram.value = false
+      generatingBusinessCard.value = false
     }
   } catch (error) {
     console.error('Chat error:', error)
@@ -137,6 +147,7 @@ async function onSend(additionalInstructions: string) {
     })
     streamingContent.value = ''
     generatingDiagram.value = false
+    generatingBusinessCard.value = false
   } finally {
     sending.value = false
   }
@@ -150,4 +161,5 @@ onMounted(() => {
 watch(messages, () => nextTick(() => messageListEl.value?.scrollToBottom()))
 watch(streamingContent, () => nextTick(() => messageListEl.value?.scrollToBottom()))
 watch(generatingDiagram, () => nextTick(() => messageListEl.value?.scrollToBottom()))
+watch(generatingBusinessCard, () => nextTick(() => messageListEl.value?.scrollToBottom()))
 </script>

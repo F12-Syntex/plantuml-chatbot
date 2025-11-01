@@ -5,10 +5,10 @@
         <MdiChartBoxOutline class="text-5xl sm:text-6xl text-primary" />
       </div>
       <h2 class="text-3xl sm:text-4xl lg:text-5xl font-bold bg-primary pb-2 bg-clip-text text-transparent">
-        Let's Create Diagrams
+        Let's Create Something
       </h2>
       <p class="text-sm sm:text-base lg:text-lg text-base-content/70 max-w-lg mx-auto px-4 py-4">
-        Transform your ideas into beautiful PlantUML diagrams. Just describe what you need!
+        Transform your ideas into beautiful PlantUML diagrams or professional business cards!
       </p>
     </div>
     
@@ -59,6 +59,7 @@ import MdiPackageVariant from '~icons/mdi/package-variant'
 import MdiAccountGroup from '~icons/mdi/account-group'
 import MdiLightningBolt from '~icons/mdi/lightning-bolt'
 import MdiChartBoxOutline from '~icons/mdi/chart-box-outline'
+import MdiCardAccountDetailsOutline from '~icons/mdi/card-account-details-outline'
 
 interface Suggestion {
   icon: Component
@@ -75,10 +76,10 @@ const suggestions: Suggestion[] = [
     prompt: 'Create a sequence diagram for user authentication flow'
   },
   {
-    icon: MdiPackageVariant,
-    title: 'Class Diagram',
-    description: 'Generate a class diagram for an e-commerce system',
-    prompt: 'Generate a class diagram for an e-commerce system'
+    icon: MdiCardAccountDetailsOutline,
+    title: 'Business Card',
+    description: 'Design a professional business card',
+    prompt: 'Create a business card for John Doe, Software Engineer at Tech Corp, email: john@techcorp.com, phone: (555) 123-4567'
   },
   {
     icon: MdiAccountGroup,
