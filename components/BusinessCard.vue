@@ -66,7 +66,7 @@
 </template>
 
 <script setup lang="ts">
-import html2canvas from 'html2canvas'
+import html2canvas from 'html2canvas-pro'
 
 interface BusinessCardTheme {
   backgroundColor: string
@@ -223,35 +223,105 @@ function convertAllColorsToHex(element: HTMLElement) {
 
   elements.forEach(el => {
     const computed = window.getComputedStyle(el)
-    const colorProps = [
+
+    // Apply all computed styles as inline styles
+    const importantStyles = [
       'background-color',
+      'background',
       'color',
       'border-color',
       'border-top-color',
       'border-right-color',
       'border-bottom-color',
       'border-left-color',
+      'border-width',
+      'border-style',
+      'border-radius',
+      'padding',
+      'margin',
+      'font-size',
+      'font-weight',
+      'font-family',
+      'line-height',
+      'text-align',
+      'display',
+      'width',
+      'height',
       'fill',
-      'stroke'
+      'stroke',
+      'flex-direction',
+      'align-items',
+      'justify-content',
+      'gap'
     ]
 
-    colorProps.forEach(prop => {
+    importantStyles.forEach(prop => {
       const value = computed.getPropertyValue(prop)
-      if (value && value !== 'transparent' && value !== 'rgba(0, 0, 0, 0)' && value !== 'none') {
-        const hexColor = parseRgbString(value)
-        if (hexColor.startsWith('#')) {
-          el.style.setProperty(prop, hexColor, 'important')
+      if (value && value !== '' && value !== 'none') {
+        // Convert color values to hex
+        if (prop.includes('color') || prop === 'background' || prop === 'fill' || prop === 'stroke') {
+          if (value.includes('rgb') || value.includes('oklch')) {
+            const hexColor = parseRgbString(value)
+            if (hexColor.startsWith('#')) {
+              el.style.setProperty(prop, hexColor, 'important')
+            } else {
+              el.style.setProperty(prop, value, 'important')
+            }
+          } else if (value !== 'transparent' && value !== 'rgba(0, 0, 0, 0)') {
+            el.style.setProperty(prop, value, 'important')
+          }
+        } else {
+          el.style.setProperty(prop, value, 'important')
         }
       }
     })
 
-    const bgValue = computed.getPropertyValue('background')
-    if (bgValue && bgValue !== 'none') {
-      const colorMatch = bgValue.match(/(?:rgba?\([\d\s,]+\)|oklch\([^)]+\))/)
-      if (colorMatch) {
-        const hexBg = parseRgbString(colorMatch[0])
+    // Special handling for DaisyUI badge and other component styles
+    if (el.classList.contains('badge')) {
+      // Ensure badge styles are fully computed
+      const bgColor = computed.backgroundColor
+      const textColor = computed.color
+      const borderColor = computed.borderColor
+
+      if (bgColor && bgColor !== 'transparent') {
+        const hexBg = parseRgbString(bgColor)
         if (hexBg.startsWith('#')) {
-          el.style.setProperty('background', hexBg, 'important')
+          el.style.setProperty('background-color', hexBg, 'important')
+        }
+      }
+
+      if (textColor) {
+        const hexText = parseRgbString(textColor)
+        if (hexText.startsWith('#')) {
+          el.style.setProperty('color', hexText, 'important')
+        }
+      }
+
+      if (borderColor && borderColor !== 'transparent') {
+        const hexBorder = parseRgbString(borderColor)
+        if (hexBorder.startsWith('#')) {
+          el.style.setProperty('border-color', hexBorder, 'important')
+        }
+      }
+    }
+
+    // Handle divider pseudo-elements by converting to real elements
+    if (el.classList.contains('divider')) {
+      // Remove the class that uses pseudo-elements and add inline divider
+      if (!el.querySelector('.divider-line')) {
+        el.style.display = 'block'
+        el.style.height = '1px'
+        el.style.width = '100%'
+
+        const bgValue = computed.backgroundColor
+        if (bgValue && bgValue !== 'transparent' && bgValue !== 'rgba(0, 0, 0, 0)') {
+          const hexColor = parseRgbString(bgValue)
+          if (hexColor.startsWith('#')) {
+            el.style.backgroundColor = hexColor
+          }
+        } else {
+          // Use a default gray if no background is set
+          el.style.backgroundColor = '#e5e7eb'
         }
       }
     }
@@ -300,6 +370,8 @@ async function downloadImage() {
       scale: scale,
       backgroundColor: '#f5f5f5',
       logging: false,
+      useCORS: true,
+      allowTaint: true,
       width: container.offsetWidth,
       height: container.offsetHeight,
       windowWidth: container.offsetWidth,
@@ -360,7 +432,9 @@ async function copyImage() {
     const canvas = await html2canvas(clonedCard, {
       scale: scale,
       backgroundColor: null,
-      logging: false
+      logging: false,
+      useCORS: true,
+      allowTaint: true
     })
 
     document.body.removeChild(clonedCard)
@@ -410,6 +484,331 @@ function applyTheme(theme: Partial<BusinessCardTheme>) {
   overflow: hidden;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
   background: var(--card-bg);
+  position: relative;
+  contain: layout style paint;
+}
+
+.business-card-preview :deep(*) {
+  box-sizing: border-box;
+}
+
+/* Add overflow protection for common text elements */
+.business-card-preview :deep(h1),
+.business-card-preview :deep(h2),
+.business-card-preview :deep(h3),
+.business-card-preview :deep(p),
+.business-card-preview :deep(span),
+.business-card-preview :deep(div) {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Ensure DaisyUI components work properly */
+.business-card-preview :deep(.badge) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+  transition-duration: 200ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  height: 1.25rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  width: fit-content;
+  padding-left: 0.563rem;
+  padding-right: 0.563rem;
+  border-width: 1px;
+  border-radius: var(--rounded-badge, 1.9rem);
+  border-color: transparent;
+  background-color: var(--fallback-b2, oklch(var(--b2)/1));
+  color: var(--fallback-bc, oklch(var(--bc)/1));
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.business-card-preview :deep(.badge-primary) {
+  background-color: var(--fallback-p, oklch(var(--p)/1));
+  border-color: var(--fallback-p, oklch(var(--p)/1));
+  color: var(--fallback-pc, oklch(var(--pc)/1));
+}
+
+.business-card-preview :deep(.badge-secondary) {
+  background-color: var(--fallback-s, oklch(var(--s)/1));
+  border-color: var(--fallback-s, oklch(var(--s)/1));
+  color: var(--fallback-sc, oklch(var(--sc)/1));
+}
+
+.business-card-preview :deep(.badge-accent) {
+  background-color: var(--fallback-a, oklch(var(--a)/1));
+  border-color: var(--fallback-a, oklch(var(--a)/1));
+  color: var(--fallback-ac, oklch(var(--ac)/1));
+}
+
+.business-card-preview :deep(.badge-outline) {
+  background-color: transparent;
+  border-color: currentColor;
+}
+
+.business-card-preview :deep(.badge-sm) {
+  height: 1rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  padding-left: 0.438rem;
+  padding-right: 0.438rem;
+}
+
+.business-card-preview :deep(.divider) {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  align-self: stretch;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  height: 1rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.business-card-preview :deep(.divider::before),
+.business-card-preview :deep(.divider::after) {
+  content: '';
+  flex-grow: 1;
+  height: 0.125rem;
+  width: 100%;
+  background-color: var(--fallback-bc, oklch(var(--bc)/0.1));
+}
+
+/* Add grid support */
+.business-card-preview :deep(.grid) {
+  display: grid;
+}
+
+.business-card-preview :deep(.grid-cols-1) {
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+.business-card-preview :deep(.grid-cols-2) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.business-card-preview :deep(.grid-cols-3) {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.business-card-preview :deep(.gap-1) {
+  gap: 0.25rem;
+}
+
+.business-card-preview :deep(.gap-2) {
+  gap: 0.5rem;
+}
+
+.business-card-preview :deep(.gap-3) {
+  gap: 0.75rem;
+}
+
+.business-card-preview :deep(.gap-4) {
+  gap: 1rem;
+}
+
+.business-card-preview :deep(.gap-6) {
+  gap: 1.5rem;
+}
+
+.business-card-preview :deep(.gap-8) {
+  gap: 2rem;
+}
+
+/* Ensure flex layouts work */
+.business-card-preview :deep(.flex) {
+  display: flex;
+}
+
+.business-card-preview :deep(.flex-row) {
+  flex-direction: row;
+}
+
+.business-card-preview :deep(.flex-col) {
+  flex-direction: column;
+}
+
+.business-card-preview :deep(.items-start) {
+  align-items: flex-start;
+}
+
+.business-card-preview :deep(.items-center) {
+  align-items: center;
+}
+
+.business-card-preview :deep(.items-end) {
+  align-items: flex-end;
+}
+
+.business-card-preview :deep(.justify-start) {
+  justify-content: flex-start;
+}
+
+.business-card-preview :deep(.justify-center) {
+  justify-content: center;
+}
+
+.business-card-preview :deep(.justify-between) {
+  justify-content: space-between;
+}
+
+.business-card-preview :deep(.justify-end) {
+  justify-content: flex-end;
+}
+
+/* Typography utilities */
+.business-card-preview :deep(.text-xs) {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.business-card-preview :deep(.text-sm) {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.business-card-preview :deep(.text-base) {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
+.business-card-preview :deep(.text-lg) {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+}
+
+.business-card-preview :deep(.text-xl) {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+}
+
+.business-card-preview :deep(.text-2xl) {
+  font-size: 1.5rem;
+  line-height: 2rem;
+}
+
+.business-card-preview :deep(.text-3xl) {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+}
+
+.business-card-preview :deep(.text-4xl) {
+  font-size: 2.25rem;
+  line-height: 2.5rem;
+}
+
+/* Font weights */
+.business-card-preview :deep(.font-thin) {
+  font-weight: 100;
+}
+
+.business-card-preview :deep(.font-light) {
+  font-weight: 300;
+}
+
+.business-card-preview :deep(.font-normal) {
+  font-weight: 400;
+}
+
+.business-card-preview :deep(.font-medium) {
+  font-weight: 500;
+}
+
+.business-card-preview :deep(.font-semibold) {
+  font-weight: 600;
+}
+
+.business-card-preview :deep(.font-bold) {
+  font-weight: 700;
+}
+
+.business-card-preview :deep(.font-extrabold) {
+  font-weight: 800;
+}
+
+.business-card-preview :deep(.font-black) {
+  font-weight: 900;
+}
+
+/* Spacing utilities */
+.business-card-preview :deep(.space-x-1 > * + *) {
+  margin-left: 0.25rem;
+}
+
+.business-card-preview :deep(.space-x-2 > * + *) {
+  margin-left: 0.5rem;
+}
+
+.business-card-preview :deep(.space-x-4 > * + *) {
+  margin-left: 1rem;
+}
+
+.business-card-preview :deep(.space-y-1 > * + *) {
+  margin-top: 0.25rem;
+}
+
+.business-card-preview :deep(.space-y-2 > * + *) {
+  margin-top: 0.5rem;
+}
+
+.business-card-preview :deep(.space-y-4 > * + *) {
+  margin-top: 1rem;
+}
+
+/* Padding utilities */
+.business-card-preview :deep(.p-2) {
+  padding: 0.5rem;
+}
+
+.business-card-preview :deep(.p-4) {
+  padding: 1rem;
+}
+
+.business-card-preview :deep(.p-6) {
+  padding: 1.5rem;
+}
+
+.business-card-preview :deep(.p-8) {
+  padding: 2rem;
+}
+
+/* Margin utilities */
+.business-card-preview :deep(.m-2) {
+  margin: 0.5rem;
+}
+
+.business-card-preview :deep(.m-4) {
+  margin: 1rem;
+}
+
+/* Rounded utilities */
+.business-card-preview :deep(.rounded) {
+  border-radius: 0.25rem;
+}
+
+.business-card-preview :deep(.rounded-lg) {
+  border-radius: 0.5rem;
+}
+
+.business-card-preview :deep(.rounded-full) {
+  border-radius: 9999px;
+}
+
+/* Shadow utilities */
+.business-card-preview :deep(.shadow) {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+
+.business-card-preview :deep(.shadow-lg) {
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+.business-card-preview :deep(.shadow-xl) {
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
 }
 
 @media (max-width: 640px) {
