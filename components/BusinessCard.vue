@@ -15,11 +15,11 @@
 
       <div class="p-4 bg-base-50 relative">
         <div class="flex justify-center gap-4">
-          <div v-show="!showingBack" class="business-card-preview" :style="computedCardStyle">
+          <div v-show="!showingBack" ref="frontCardRef" class="business-card-preview" :style="computedCardStyle">
             <div v-html="frontHtml" class="w-full h-full"></div>
           </div>
 
-          <div v-show="showingBack" class="business-card-preview" :style="computedCardStyle">
+          <div v-show="showingBack" ref="backCardRef" class="business-card-preview" :style="computedCardStyle">
             <div v-html="backHtml" class="w-full h-full"></div>
           </div>
         </div>
@@ -62,6 +62,18 @@
       @update:model-value="themeDrawerOpen = $event"
       @apply="applyTheme"
     />
+
+    <!-- Hidden container for rendering both cards for download -->
+    <div ref="downloadContainerRef" class="download-container" style="position: fixed; left: -99999px; top: 0; visibility: hidden;">
+      <div class="download-wrapper" style="display: flex; gap: 40px; padding: 40px; background-color: #f5f5f5;">
+        <div class="business-card-preview business-card-download" :style="computedCardStyle">
+          <div v-html="frontHtml" class="w-full h-full"></div>
+        </div>
+        <div class="business-card-preview business-card-download" :style="computedCardStyle">
+          <div v-html="backHtml" class="w-full h-full"></div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -91,6 +103,10 @@ const toastMessage = ref('')
 const themeDrawerOpen = ref(false)
 const showingBack = ref(false)
 const downloading = ref(false)
+
+const frontCardRef = ref<HTMLElement | null>(null)
+const backCardRef = ref<HTMLElement | null>(null)
+const downloadContainerRef = ref<HTMLElement | null>(null)
 
 const currentTheme = ref<BusinessCardTheme>({
   backgroundColor: '#ffffff',
@@ -157,173 +173,54 @@ async function copyCode() {
   }
 }
 
-function oklchToRgb(l: number, c: number, h: number): { r: number; g: number; b: number } {
-  const a = c * Math.cos(h * Math.PI / 180)
-  const b = c * Math.sin(h * Math.PI / 180)
+function deepCloneStyles(source: HTMLElement, target: HTMLElement) {
+  const sourceComputed = window.getComputedStyle(source)
   
-  let X = (l + 0.3963377774 * a + 0.2158037573 * b) ** 3
-  let Y = (l - 0.1055613458 * a - 0.0638541728 * b) ** 3
-  let Z = (l - 0.0894841775 * a - 1.2914855480 * b) ** 3
-
-  let r = 3.2404542 * X - 1.5371385 * Y - 0.4985314 * Z
-  let g = -0.9692660 * X + 1.8760108 * Y + 0.0415560 * Z
-  let bVal = 0.0556434 * X - 0.2040259 * Y + 1.0572252 * Z
-
-  r = r > 0.0031308 ? 1.055 * Math.pow(r, 1 / 2.4) - 0.055 : 12.92 * r
-  g = g > 0.0031308 ? 1.055 * Math.pow(g, 1 / 2.4) - 0.055 : 12.92 * g
-  bVal = bVal > 0.0031308 ? 1.055 * Math.pow(bVal, 1 / 2.4) - 0.055 : 12.92 * bVal
-
-  return {
-    r: Math.max(0, Math.min(255, Math.round(r * 255))),
-    g: Math.max(0, Math.min(255, Math.round(g * 255))),
-    b: Math.max(0, Math.min(255, Math.round(bVal * 255)))
+  // Copy all inline styles first
+  if (source.style.cssText) {
+    target.style.cssText = source.style.cssText
   }
-}
+  
+  // List of critical CSS properties
+  const criticalProperties = [
+    'display', 'position', 'top', 'right', 'bottom', 'left',
+    'width', 'height', 'min-width', 'min-height', 'max-width', 'max-height',
+    'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+    'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+    'border', 'border-width', 'border-style', 'border-color', 'border-radius',
+    'background', 'background-color', 'background-image', 'background-size', 'background-position',
+    'color', 'font-family', 'font-size', 'font-weight', 'font-style',
+    'line-height', 'text-align', 'text-decoration', 'text-transform',
+    'flex', 'flex-direction', 'flex-wrap', 'justify-content', 'align-items', 'gap',
+    'grid', 'grid-template-columns', 'grid-template-rows', 'grid-gap',
+    'overflow', 'overflow-x', 'overflow-y', 'white-space', 'word-wrap',
+    'opacity', 'transform', 'box-shadow', 'z-index', 'letter-spacing'
+  ]
 
-function rgbToHex(r: number, g: number, b: number): string {
-  return '#' + [r, g, b].map(x => {
-    const hex = x.toString(16)
-    return hex.length === 1 ? '0' + hex : hex
-  }).join('')
-}
-
-function parseRgbString(rgb: string): string {
-  const rgbaMatch = rgb.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/)
-  if (rgbaMatch) {
-    const r = parseInt(rgbaMatch[1])
-    const g = parseInt(rgbaMatch[2])
-    const b = parseInt(rgbaMatch[3])
-    return rgbToHex(r, g, b)
-  }
-
-  const oklchMatch = rgb.match(/oklch\(([\d.]+%?)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+%?))?\)/)
-  if (oklchMatch) {
-    let l = parseFloat(oklchMatch[1])
-    if (oklchMatch[1].includes('%')) {
-      l = l / 100
+  criticalProperties.forEach(prop => {
+    const value = sourceComputed.getPropertyValue(prop)
+    if (value && value !== '' && value !== 'none' && value !== 'normal' && value !== 'auto') {
+      target.style.setProperty(prop, value, 'important')
     }
-    const c = parseFloat(oklchMatch[2])
-    const h = parseFloat(oklchMatch[3])
-    
-    const { r, g, b } = oklchToRgb(l, c, h)
-    return rgbToHex(r, g, b)
-  }
+  })
 
-  return rgb
-}
-
-function convertAllColorsToHex(element: HTMLElement) {
-  const walker = document.createTreeWalker(element, NodeFilter.SHOW_ELEMENT)
-  const elements: HTMLElement[] = [element]
-
-  let node
-  while (node = walker.nextNode()) {
-    elements.push(node as HTMLElement)
-  }
-
-  elements.forEach(el => {
-    const computed = window.getComputedStyle(el)
-
-    // Apply all computed styles as inline styles
-    const importantStyles = [
-      'background-color',
-      'background',
-      'color',
-      'border-color',
-      'border-top-color',
-      'border-right-color',
-      'border-bottom-color',
-      'border-left-color',
-      'border-width',
-      'border-style',
-      'border-radius',
-      'padding',
-      'margin',
-      'font-size',
-      'font-weight',
-      'font-family',
-      'line-height',
-      'text-align',
-      'display',
-      'width',
-      'height',
-      'fill',
-      'stroke',
-      'flex-direction',
-      'align-items',
-      'justify-content',
-      'gap'
-    ]
-
-    importantStyles.forEach(prop => {
-      const value = computed.getPropertyValue(prop)
+  // Handle SVG elements
+  if (source instanceof SVGElement && target instanceof SVGElement) {
+    ['fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin'].forEach(prop => {
+      const value = sourceComputed.getPropertyValue(prop)
       if (value && value !== '' && value !== 'none') {
-        // Convert color values to hex
-        if (prop.includes('color') || prop === 'background' || prop === 'fill' || prop === 'stroke') {
-          if (value.includes('rgb') || value.includes('oklch')) {
-            const hexColor = parseRgbString(value)
-            if (hexColor.startsWith('#')) {
-              el.style.setProperty(prop, hexColor, 'important')
-            } else {
-              el.style.setProperty(prop, value, 'important')
-            }
-          } else if (value !== 'transparent' && value !== 'rgba(0, 0, 0, 0)') {
-            el.style.setProperty(prop, value, 'important')
-          }
-        } else {
-          el.style.setProperty(prop, value, 'important')
-        }
+        target.style.setProperty(prop, value, 'important')
       }
     })
+  }
 
-    // Special handling for DaisyUI badge and other component styles
-    if (el.classList.contains('badge')) {
-      // Ensure badge styles are fully computed
-      const bgColor = computed.backgroundColor
-      const textColor = computed.color
-      const borderColor = computed.borderColor
-
-      if (bgColor && bgColor !== 'transparent') {
-        const hexBg = parseRgbString(bgColor)
-        if (hexBg.startsWith('#')) {
-          el.style.setProperty('background-color', hexBg, 'important')
-        }
-      }
-
-      if (textColor) {
-        const hexText = parseRgbString(textColor)
-        if (hexText.startsWith('#')) {
-          el.style.setProperty('color', hexText, 'important')
-        }
-      }
-
-      if (borderColor && borderColor !== 'transparent') {
-        const hexBorder = parseRgbString(borderColor)
-        if (hexBorder.startsWith('#')) {
-          el.style.setProperty('border-color', hexBorder, 'important')
-        }
-      }
-    }
-
-    // Handle divider pseudo-elements by converting to real elements
-    if (el.classList.contains('divider')) {
-      // Remove the class that uses pseudo-elements and add inline divider
-      if (!el.querySelector('.divider-line')) {
-        el.style.display = 'block'
-        el.style.height = '1px'
-        el.style.width = '100%'
-
-        const bgValue = computed.backgroundColor
-        if (bgValue && bgValue !== 'transparent' && bgValue !== 'rgba(0, 0, 0, 0)') {
-          const hexColor = parseRgbString(bgValue)
-          if (hexColor.startsWith('#')) {
-            el.style.backgroundColor = hexColor
-          }
-        } else {
-          // Use a default gray if no background is set
-          el.style.backgroundColor = '#e5e7eb'
-        }
-      }
+  // Recursively clone children styles
+  const sourceChildren = Array.from(source.children)
+  const targetChildren = Array.from(target.children)
+  
+  sourceChildren.forEach((sourceChild, index) => {
+    if (sourceChild instanceof HTMLElement && targetChildren[index] instanceof HTMLElement) {
+      deepCloneStyles(sourceChild as HTMLElement, targetChildren[index] as HTMLElement)
     }
   })
 }
@@ -333,59 +230,83 @@ async function downloadImage() {
   downloading.value = true
 
   try {
-    const cards = document.querySelectorAll('.business-card-preview') as NodeListOf<HTMLElement>
-    if (!cards || cards.length === 0) return
+    const container = downloadContainerRef.value
+    if (!container) {
+      showToastNotification('Download container not found')
+      downloading.value = false
+      return
+    }
 
-    const container = document.createElement('div')
-    container.style.display = 'flex'
-    container.style.gap = '40px'
-    container.style.padding = '40px'
-    container.style.backgroundColor = '#f5f5f5'
-    container.style.position = 'absolute'
-    container.style.left = '-9999px'
-    document.body.appendChild(container)
+    const wrapper = container.querySelector('.download-wrapper') as HTMLElement
+    if (!wrapper) {
+      showToastNotification('Download wrapper not found')
+      downloading.value = false
+      return
+    }
 
-    const frontCard = cards[0].cloneNode(true) as HTMLElement
-    const backCard = cards[1].cloneNode(true) as HTMLElement
+    // Get the original cards for reference
+    const frontOriginal = frontCardRef.value
+    const backOriginal = backCardRef.value
 
-    const styleVars = computedCardStyle.value
-    Object.entries(styleVars).forEach(([key, value]) => {
-      frontCard.style.setProperty(key, value)
-      backCard.style.setProperty(key, value)
-    })
+    if (!frontOriginal || !backOriginal) {
+      showToastNotification('Original cards not found')
+      downloading.value = false
+      return
+    }
 
-    container.appendChild(frontCard)
-    container.appendChild(backCard)
+    // Get the download cards
+    const downloadCards = container.querySelectorAll('.business-card-download') as NodeListOf<HTMLElement>
+    if (downloadCards.length < 2) {
+      showToastNotification('Download cards not found')
+      downloading.value = false
+      return
+    }
 
+    // Make the container visible temporarily
+    container.style.visibility = 'visible'
+    container.style.position = 'fixed'
+    container.style.left = '-99999px'
+    container.style.top = '0'
+    container.style.zIndex = '-9999'
+
+    // Wait for DOM to update
     await nextTick()
-
-    convertAllColorsToHex(container)
-
+    
+    // Force reflow
     void container.offsetHeight
 
-    await new Promise(resolve => setTimeout(resolve, 100))
+    // Clone styles from visible cards to download cards
+    deepCloneStyles(frontOriginal, downloadCards[0])
+    deepCloneStyles(backOriginal, downloadCards[1])
 
-    const scale = 3
-    const canvas = await html2canvas(container, {
-      scale: scale,
+    // Wait for styles to apply
+    await new Promise(resolve => setTimeout(resolve, 300))
+
+    // Capture the wrapper
+    const canvas = await html2canvas(wrapper, {
+      scale: 2,
       backgroundColor: '#f5f5f5',
       logging: false,
       useCORS: true,
       allowTaint: true,
-      width: container.offsetWidth,
-      height: container.offsetHeight,
-      windowWidth: container.offsetWidth,
-      windowHeight: container.offsetHeight
+      imageTimeout: 0,
+      removeContainer: false,
+      width: wrapper.offsetWidth,
+      height: wrapper.offsetHeight,
+      windowWidth: wrapper.offsetWidth,
+      windowHeight: wrapper.offsetHeight
     })
 
-    document.body.removeChild(container)
+    // Hide the container again
+    container.style.visibility = 'hidden'
 
+    // Convert to blob and download
     canvas.toBlob((blob) => {
       if (blob) {
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = 'business-card-front-and-back.png'
+        a.download = 'business-cards-front-and-back.png'
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)
@@ -406,38 +327,56 @@ async function copyImage() {
   downloading.value = true
 
   try {
-    const card = document.querySelector('.business-card-preview') as HTMLElement
-    if (!card) return
+    const card = showingBack.value ? backCardRef.value : frontCardRef.value
+    
+    if (!card) {
+      showToastNotification('Card not found')
+      downloading.value = false
+      return
+    }
 
+    // Create a temporary container
+    const tempContainer = document.createElement('div')
+    tempContainer.style.cssText = `
+      position: fixed;
+      left: -99999px;
+      top: 0;
+      z-index: -9999;
+      visibility: visible;
+    `
+    document.body.appendChild(tempContainer)
+
+    // Clone the card
     const clonedCard = card.cloneNode(true) as HTMLElement
-
+    clonedCard.classList.add('business-card-preview')
+    
+    // Apply theme CSS variables
     const styleVars = computedCardStyle.value
     Object.entries(styleVars).forEach(([key, value]) => {
       clonedCard.style.setProperty(key, value)
     })
 
-    clonedCard.style.position = 'absolute'
-    clonedCard.style.left = '-9999px'
-    document.body.appendChild(clonedCard)
+    tempContainer.appendChild(clonedCard)
 
     await nextTick()
+    void tempContainer.offsetHeight
 
-    convertAllColorsToHex(clonedCard)
+    // Clone styles from original to cloned card
+    deepCloneStyles(card, clonedCard)
 
-    void clonedCard.offsetHeight
+    await new Promise(resolve => setTimeout(resolve, 300))
 
-    await new Promise(resolve => setTimeout(resolve, 100))
-
-    const scale = 3
     const canvas = await html2canvas(clonedCard, {
-      scale: scale,
+      scale: 2,
       backgroundColor: null,
       logging: false,
       useCORS: true,
-      allowTaint: true
+      allowTaint: true,
+      imageTimeout: 0,
+      removeContainer: false
     })
 
-    document.body.removeChild(clonedCard)
+    document.body.removeChild(tempContainer)
 
     canvas.toBlob(async (blob) => {
       if (blob) {
