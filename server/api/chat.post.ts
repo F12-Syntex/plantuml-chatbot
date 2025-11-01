@@ -81,6 +81,8 @@ DAISYUI COMPONENTS TO USE:
 - Font weights: font-thin, font-normal, font-medium, font-semibold, font-bold, font-extrabold
 - Spacing: p-2, p-4, p-6, m-2, m-4, gap-2, gap-4, space-x-2, space-y-2
 - Flex/Grid: flex, flex-col, flex-row, items-center, justify-center, grid, grid-cols-2
+- Shadows: shadow, shadow-lg, shadow-xl
+- Borders: rounded, rounded-lg, rounded-full
 
 CRITICAL COLOR RULES:
 - NEVER use DaisyUI color classes (badge-primary, badge-secondary, bg-primary, etc.)
