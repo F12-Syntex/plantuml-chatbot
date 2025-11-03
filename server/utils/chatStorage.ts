@@ -1,4 +1,4 @@
-import { put, head } from '@vercel/blob'
+import { put, head, list, del } from '@vercel/blob'
 
 interface Message {
   role: 'user' | 'assistant' | 'system'
@@ -10,6 +10,31 @@ interface Chat {
   messages: Message[]
   createdAt: string
   updatedAt: string
+}
+
+export interface AccessLog {
+  timestamp: string
+  action: 'created' | 'viewed' | 'updated' | 'deleted'
+  ip?: string
+  region?: string
+  country?: string
+  city?: string
+  userAgent?: string
+  device?: string
+  browser?: string
+  browserVersion?: string
+  os?: string
+  referrer?: string
+  url?: string
+  method?: string
+  language?: string
+  timezone?: string
+  isBot?: boolean
+  sessionId?: string
+}
+
+export interface ChatWithLogs extends Chat {
+  accessLogs?: AccessLog[]
 }
 
 // Cache of blob URLs to avoid looking them up repeatedly
@@ -190,4 +215,242 @@ export async function createChat(messages: Message[]): Promise<Chat> {
   await saveChat(chat)
   console.log(`[ChatStorage] Created chat ${id}`)
   return chat
+}
+
+// Get or create access logs for a chat
+async function getAccessLogs(chatId: string, fresh: boolean = false): Promise<AccessLog[]> {
+  try {
+    const logPath = `chats/${chatId}_logs.json`
+    
+    // Always try to get fresh URL using head API to avoid stale cache
+    try {
+      const blobInfo = await head(logPath)
+      if (blobInfo?.url) {
+        // Fetch with cache-busting query parameter to ensure fresh data
+        const freshUrl = `${blobInfo.url}?t=${Date.now()}`
+        const response = await fetch(freshUrl, {
+          cache: 'no-store'
+        })
+        if (response.ok) {
+          const content = await response.text()
+          const logs = JSON.parse(content) as AccessLog[]
+          // Ensure it's an array and not corrupted
+          if (Array.isArray(logs)) {
+            blobUrlCache.set(`${chatId}_logs`, blobInfo.url)
+            return logs
+          } else {
+            console.warn(`[ChatStorage] Invalid log format for ${chatId}, resetting`)
+            return []
+          }
+        }
+      }
+    } catch (headError) {
+      // If head fails, log file might not exist yet, which is fine
+      console.log(`[ChatStorage] Log file doesn't exist yet for ${chatId}`)
+    }
+    
+    // Fallback: Try cached URL if head didn't work
+    const logUrl = blobUrlCache.get(`${chatId}_logs`)
+    if (logUrl && !fresh) {
+      try {
+        const response = await fetch(`${logUrl}?t=${Date.now()}`, {
+          cache: 'no-store'
+        })
+        if (response.ok) {
+          const content = await response.text()
+          const logs = JSON.parse(content) as AccessLog[]
+          if (Array.isArray(logs)) {
+            return logs
+          }
+        }
+      } catch {}
+    }
+    
+    // If all else fails, try constructing URL from store ID
+    const storeId = getCachedStoreId() || process.env.BLOB_STORE_ID
+    if (storeId) {
+      const constructedUrl = `https://${storeId}.public.blob.vercel-storage.com/${logPath}`
+      try {
+        const response = await fetch(`${constructedUrl}?t=${Date.now()}`, {
+          cache: 'no-store'
+        })
+        if (response.ok) {
+          const content = await response.text()
+          const logs = JSON.parse(content) as AccessLog[]
+          if (Array.isArray(logs)) {
+            blobUrlCache.set(`${chatId}_logs`, constructedUrl)
+            return logs
+          }
+        }
+      } catch {}
+    }
+    
+    return []
+  } catch (error) {
+    console.error(`[ChatStorage] Error getting access logs for ${chatId}:`, error)
+    return []
+  }
+}
+
+// Save access logs for a chat
+async function saveAccessLogs(chatId: string, logs: AccessLog[]): Promise<void> {
+  try {
+    const logPath = `chats/${chatId}_logs.json`
+    
+    // Ensure logs is an array
+    if (!Array.isArray(logs)) {
+      console.error(`[ChatStorage] Attempted to save non-array logs for ${chatId}`)
+      return
+    }
+    
+    // Remove duplicates based on timestamp (shouldn't happen, but safety check)
+    const uniqueLogs = logs.filter((log, index, self) => 
+      index === self.findIndex(l => l.timestamp === log.timestamp && l.action === log.action)
+    )
+    
+    const content = JSON.stringify(uniqueLogs, null, 2)
+    
+    const blob = await put(logPath, content, {
+      access: 'public',
+      contentType: 'application/json',
+      allowOverwrite: true
+    })
+    
+    blobUrlCache.set(`${chatId}_logs`, blob.url)
+    console.log(`[ChatStorage] Saved ${uniqueLogs.length} access logs for ${chatId}`)
+  } catch (error) {
+    console.error(`[ChatStorage] Error saving access logs for ${chatId}:`, error)
+    throw error
+  }
+}
+
+// Add an access log entry
+export async function logChatAccess(
+  chatId: string,
+  action: 'created' | 'viewed' | 'updated' | 'deleted',
+  requestInfo: Partial<AccessLog>
+): Promise<void> {
+  try {
+    // Always fetch fresh logs to avoid race conditions
+    const logs = await getAccessLogs(chatId, true)
+    
+    // Create new log entry
+    const newLog: AccessLog = {
+      timestamp: new Date().toISOString(),
+      action,
+      ...requestInfo
+    }
+    
+    // Ensure we have an array
+    const updatedLogs = Array.isArray(logs) ? [...logs] : []
+    updatedLogs.push(newLog)
+    
+    console.log(`[ChatStorage] Logging ${action} for chat ${chatId}, total logs: ${updatedLogs.length}`)
+    await saveAccessLogs(chatId, updatedLogs)
+  } catch (error) {
+    console.error(`[ChatStorage] Error logging access for ${chatId}:`, error)
+  }
+}
+
+// Delete a chat and its logs
+export async function deleteChat(chatId: string): Promise<void> {
+  try {
+    // Delete the chat file
+    const chatPath = `chats/${chatId}.json`
+    const chatUrl = blobUrlCache.get(chatId)
+    
+    if (chatUrl) {
+      await del(chatUrl)
+    } else {
+      // Try to get the URL using head
+      try {
+        const blobInfo = await head(chatPath)
+        if (blobInfo?.url) {
+          await del(blobInfo.url)
+        }
+      } catch {}
+    }
+    
+    // Delete the log file
+    const logPath = `chats/${chatId}_logs.json`
+    const logUrl = blobUrlCache.get(`${chatId}_logs`)
+    
+    if (logUrl) {
+      await del(logUrl)
+    } else {
+      try {
+        const blobInfo = await head(logPath)
+        if (blobInfo?.url) {
+          await del(blobInfo.url)
+        }
+      } catch {}
+    }
+    
+    // Remove from cache
+    blobUrlCache.delete(chatId)
+    blobUrlCache.delete(`${chatId}_logs`)
+    
+    console.log(`[ChatStorage] Deleted chat ${chatId} and its logs`)
+  } catch (error) {
+    console.error(`[ChatStorage] Error deleting chat ${chatId}:`, error)
+    throw error
+  }
+}
+
+// Get access logs for a chat (always fetch fresh)
+export async function getChatAccessLogs(chatId: string): Promise<AccessLog[]> {
+  const logs = await getAccessLogs(chatId, true)
+  // Sort by timestamp descending (most recent first)
+  return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+}
+
+// List all chats
+export async function listAllChats(): Promise<Array<{ id: string; createdAt: string; updatedAt: string; messageCount: number }>> {
+  try {
+    const result = await list({
+      prefix: 'chats/',
+      limit: 1000
+    })
+    
+    const chats = []
+    for (const blob of result.blobs) {
+      // Skip log files
+      if (blob.pathname.endsWith('_logs.json')) continue
+      
+      // Extract chat ID from pathname (chats/{id}.json)
+      const match = blob.pathname.match(/^chats\/([^/]+)\.json$/)
+      if (!match) continue
+      
+      const chatId = match[1]
+      
+      // Try to get chat info
+      try {
+        const chat = await getChat(chatId)
+        if (chat) {
+          chats.push({
+            id: chat.id,
+            createdAt: chat.createdAt,
+            updatedAt: chat.updatedAt,
+            messageCount: chat.messages?.length || 0
+          })
+        }
+      } catch {
+        // If we can't load it, still include basic info
+        chats.push({
+          id: chatId,
+          createdAt: blob.uploadedAt || new Date().toISOString(),
+          updatedAt: blob.uploadedAt || new Date().toISOString(),
+          messageCount: 0
+        })
+      }
+    }
+    
+    // Sort by updatedAt descending
+    chats.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    
+    return chats
+  } catch (error) {
+    console.error('[ChatStorage] Error listing chats:', error)
+    return []
+  }
 }
