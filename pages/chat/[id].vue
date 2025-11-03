@@ -18,7 +18,9 @@
         :streaming-content="streamingContent"
         :generating-diagram="generatingDiagram"
         :generating-business-card="generatingBusinessCard"
+        :on-delete="deleteMessage"
         @apply-suggestion="applySuggestion"
+        @delete="deleteMessage"
       />
       <ChatInput 
         ref="inputEl"
@@ -82,6 +84,37 @@ async function loadChat() {
   } catch (error) {
     console.error('Failed to load chat:', error)
     chatNotFound.value = true
+  }
+}
+
+async function deleteMessage(messageIndex: number) {
+  if (messageIndex < 0 || messageIndex >= messages.value.length) {
+    console.error('Invalid message index:', messageIndex)
+    return
+  }
+
+  // Confirm deletion
+  if (!confirm('Are you sure you want to delete this message?')) {
+    return
+  }
+
+  try {
+    const response = await fetch(`/api/chat/${chatId.value}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageIndex })
+    })
+
+    if (!response.ok) {
+      throw new Error('Failed to delete message')
+    }
+
+    // Reload the chat to get updated messages
+    await loadChat()
+    messageListEl.value?.scrollToBottom()
+  } catch (error) {
+    console.error('Error deleting message:', error)
+    alert('Failed to delete message. Please try again.')
   }
 }
 

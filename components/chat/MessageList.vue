@@ -4,7 +4,14 @@
       <ChatWelcome v-if="messages.length === 0 && !streamingContent && !generatingDiagram && !generatingBusinessCard" @apply-suggestion="$emit('applySuggestion', $event)" />
 
       <div v-else class="space-y-6 sm:space-y-8">
-        <ChatMessage v-for="(m, i) in messages" :key="i" :message="m" />
+        <ChatMessage 
+          v-for="(m, i) in messages" 
+          :key="i" 
+          :message="m" 
+          :message-index="i"
+          :on-delete="onDelete"
+          @delete="$emit('delete', $event)"
+        />
         <ChatDiagramGenerating v-if="generatingDiagram" />
         <ChatBusinessCardGenerating v-else-if="generatingBusinessCard" />
         <ChatMessage
@@ -30,10 +37,12 @@ defineProps<{
   streamingContent?: string
   generatingDiagram?: boolean
   generatingBusinessCard?: boolean
+  onDelete?: (index: number) => void
 }>()
 
 defineEmits<{
   applySuggestion: [suggestion: any]
+  delete: [index: number]
 }>()
 
 const messagesEl = ref<HTMLElement | null>(null)

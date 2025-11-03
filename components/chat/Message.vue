@@ -45,6 +45,14 @@
             <button @click="copyMessage(message.content)" class="btn btn-ghost btn-xs" title="Copy">
               <MdiContentCopy class="h-3 w-3 text-base-content" />
             </button>
+            <button 
+              v-if="onDelete && messageIndex !== undefined" 
+              @click="handleDelete" 
+              class="btn btn-ghost btn-xs text-error hover:bg-error/10" 
+              title="Delete message"
+            >
+              <MdiDeleteOutline class="h-3 w-3" />
+            </button>
           </div>
         </div>
       </div>
@@ -77,6 +85,14 @@
           <button @click="copyMessage(message.content)" class="btn btn-ghost btn-xs" title="Copy">
             <MdiContentCopy class="h-3 w-3 text-base-content" />
           </button>
+          <button 
+            v-if="onDelete && messageIndex !== undefined" 
+            @click="handleDelete" 
+            class="btn btn-ghost btn-xs text-error hover:bg-error/10" 
+            title="Delete message"
+          >
+            <MdiDeleteOutline class="h-3 w-3" />
+          </button>
         </div>
       </div>
     </div>
@@ -87,16 +103,31 @@
 import MdiRobotOutline from '~icons/mdi/robot-outline'
 import MdiAccount from '~icons/mdi/account'
 import MdiContentCopy from '~icons/mdi/content-copy'
+import MdiDeleteOutline from '~icons/mdi/delete-outline'
 
 interface Message {
   role: 'user' | 'assistant'
   content: string
 }
 
-defineProps<{
+const props = defineProps<{
   message: Message
   isStreaming?: boolean
+  messageIndex?: number
+  onDelete?: (index: number) => void
 }>()
+
+const emit = defineEmits<{
+  delete: [index: number]
+}>()
+
+function handleDelete() {
+  if (props.messageIndex !== undefined && props.onDelete) {
+    props.onDelete(props.messageIndex)
+  } else if (props.messageIndex !== undefined) {
+    emit('delete', props.messageIndex)
+  }
+}
 
 function extractPlantUml(content: string): string | null {
   const match = content.match(/@startuml[\s\S]*?@enduml/)

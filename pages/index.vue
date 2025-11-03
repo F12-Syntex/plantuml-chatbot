@@ -1,14 +1,16 @@
 <template>
   <div class="h-full flex flex-col bg-gradient-to-br from-base-100 to-base-200">
-    <ChatMessageList
-      ref="messageListEl"
-      :messages="messages"
-      :sending="sending"
-      :streaming-content="streamingContent"
-      :generating-diagram="generatingDiagram"
-      :generating-business-card="generatingBusinessCard"
-      @apply-suggestion="applySuggestion"
-    />
+      <ChatMessageList
+        ref="messageListEl"
+        :messages="messages"
+        :sending="sending"
+        :streaming-content="streamingContent"
+        :generating-diagram="generatingDiagram"
+        :generating-business-card="generatingBusinessCard"
+        :on-delete="deleteMessage"
+        @apply-suggestion="applySuggestion"
+        @delete="deleteMessage"
+      />
     <ChatInput 
       ref="inputEl"
       v-model="draft" 
@@ -52,6 +54,22 @@ onMounted(() => {
 function applySuggestion(suggestion: Suggestion) {
   draft.value = suggestion.prompt
   inputEl.value?.focus()
+}
+
+function deleteMessage(messageIndex: number) {
+  if (messageIndex < 0 || messageIndex >= messages.value.length) {
+    console.error('Invalid message index:', messageIndex)
+    return
+  }
+
+  // Confirm deletion
+  if (!confirm('Are you sure you want to delete this message?')) {
+    return
+  }
+
+  // Remove from local array
+  messages.value.splice(messageIndex, 1)
+  messageListEl.value?.scrollToBottom()
 }
 
 function resetChat() {
