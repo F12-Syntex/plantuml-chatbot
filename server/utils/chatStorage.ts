@@ -1,4 +1,4 @@
-import { put } from '@vercel/blob'
+import { put, head } from '@vercel/blob'
 
 interface Message {
   role: 'user' | 'assistant' | 'system'
@@ -59,43 +59,88 @@ export async function getChat(id: string): Promise<Chat | null> {
       const storeId = getCachedStoreId() || process.env.BLOB_STORE_ID
       if (storeId) {
         blobUrl = `https://${storeId}.public.blob.vercel-storage.com/${blobPath}`
-      } else {
-        // If we don't have store ID and URL not cached, we can't retrieve it
-        console.log(`[ChatStorage] Chat ${id} not found in cache and no store ID available`)
-        return null
       }
     }
     
-    // Fetch the blob content from the public URL
-    const response = await fetch(blobUrl)
+    // If we have a URL (cached or constructed), try fetching from it
+    if (blobUrl) {
+      try {
+        const response = await fetch(blobUrl)
+        
+        if (response.ok) {
+          const content = await response.text()
+          const chat = JSON.parse(content) as Chat
+          
+          // Cache the URL for future retrievals
+          if (!blobUrlCache.has(id)) {
+            blobUrlCache.set(id, blobUrl)
+          }
+          
+          // Extract and cache the store ID from the successful fetch URL
+          const storeId = extractStoreId(blobUrl)
+          if (storeId && !getCachedStoreId()) {
+            setCachedStoreId(storeId)
+            console.log(`[ChatStorage] Extracted and cached store ID from fetch: ${storeId}`)
+          }
+          
+          console.log(`[ChatStorage] Retrieved chat ${id} from blob`)
+          return chat
+        } else if (response.status === 404) {
+          console.log(`[ChatStorage] Chat ${id} not found at ${blobUrl}`)
+          // Remove from cache if it doesn't exist
+          blobUrlCache.delete(id)
+          // Continue to try using the API below
+        } else {
+          throw new Error(`Failed to fetch chat: ${response.status} ${response.statusText}`)
+        }
+      } catch (fetchError) {
+        // If fetch fails, fall through to use the API
+        console.log(`[ChatStorage] Fetch failed for ${id}, trying API:`, fetchError)
+      }
+    }
     
-    if (!response.ok) {
-      if (response.status === 404) {
+    // Fallback: Use Vercel Blob API to get the blob URL by pathname
+    // This works even without the store ID
+    try {
+      const blobInfo = await head(blobPath)
+      
+      if (!blobInfo || !blobInfo.url) {
+        console.log(`[ChatStorage] Chat ${id} not found via API`)
+        return null
+      }
+      
+      // Now fetch the blob content using the URL from head
+      blobUrl = blobInfo.url
+      const response = await fetch(blobUrl)
+      
+      if (!response.ok) {
         console.log(`[ChatStorage] Chat ${id} not found at ${blobUrl}`)
-        // Remove from cache if it doesn't exist
-        blobUrlCache.delete(id)
         return null
       }
-      throw new Error(`Failed to fetch chat: ${response.status} ${response.statusText}`)
-    }
-    
-    const content = await response.text()
-    const chat = JSON.parse(content) as Chat
-    
-    // Cache the URL for future retrievals
-    if (!blobUrlCache.has(id)) {
+      
+      const content = await response.text()
+      const chat = JSON.parse(content) as Chat
+      
+      // Cache the URL for future retrievals
       blobUrlCache.set(id, blobUrl)
+      
+      // Extract and cache the store ID from the blob URL
+      const storeId = extractStoreId(blobUrl)
+      if (storeId && !getCachedStoreId()) {
+        setCachedStoreId(storeId)
+        console.log(`[ChatStorage] Extracted and cached store ID from API: ${storeId}`)
+      }
+      
+      console.log(`[ChatStorage] Retrieved chat ${id} from blob API`)
+      return chat
+    } catch (apiError: any) {
+      // Check if it's a 404 or not found error
+      if (apiError?.status === 404 || apiError?.statusCode === 404 || apiError?.name === 'BlobNotFoundError') {
+        console.log(`[ChatStorage] Chat ${id} not found via API (404)`)
+        return null
+      }
+      throw apiError
     }
-    
-    // Extract and cache the store ID from the successful fetch URL
-    const storeId = extractStoreId(blobUrl)
-    if (storeId && !getCachedStoreId()) {
-      setCachedStoreId(storeId)
-      console.log(`[ChatStorage] Extracted and cached store ID from fetch: ${storeId}`)
-    }
-    
-    console.log(`[ChatStorage] Retrieved chat ${id} from blob`)
-    return chat
   } catch (error) {
     console.error(`[ChatStorage] Error getting chat ${id}:`, error)
     return null
