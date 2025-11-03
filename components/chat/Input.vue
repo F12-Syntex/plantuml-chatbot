@@ -37,6 +37,7 @@
                 placeholder="Describe your diagram idea..."
                 @input="autoResize"
                 @keydown.enter.exact.prevent="handleSubmit"
+                @paste="handlePaste"
                 ref="inputEl"
                 class="w-full resize-none bg-transparent px-3 sm:px-6 py-2.5 sm:py-4 pr-9 sm:pr-28 text-sm sm:text-base leading-relaxed focus:outline-none placeholder:text-base-content/40 max-h-28 sm:max-h-48 rounded-xl sm:rounded-3xl"
                 :disabled="disabled"
@@ -58,27 +59,27 @@
             </div>
           </div>
           
-          <div class="flex gap-1.5 sm:gap-2 justify-end sm:justify-start">
+          <div class="flex gap-1 sm:gap-1.5 justify-end sm:justify-start flex-shrink-0">
             <button
               type="submit"
               :disabled="!modelValue.trim() || disabled"
-              class="btn btn-primary btn-circle h-9 w-9 sm:h-14 sm:w-14 min-h-0 shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:scale-100"
+              class="btn btn-primary btn-circle h-9 w-9 sm:h-10 sm:w-10 lg:h-12 lg:w-12 min-h-0 shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:scale-100"
               :class="{'animate-pulse': disabled}"
               title="Send"
             >
-              <MdiSend v-if="!disabled" class="h-4 w-4 sm:h-6 sm:w-6" />
-              <span v-else class="loading loading-spinner loading-xs sm:loading-md" />
+              <MdiSend v-if="!disabled" class="h-4 w-4 sm:h-5 sm:w-5" />
+              <span v-else class="loading loading-spinner loading-xs sm:loading-sm" />
             </button>
 
             <button
               type="button"
               @click="toggleInstructions"
-              class="btn btn-outline btn-circle h-9 w-9 sm:h-14 sm:w-14 min-h-0 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
+              class="btn btn-outline btn-circle h-9 w-9 sm:h-10 sm:w-10 lg:h-12 lg:w-12 min-h-0 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
               :class="{'btn-active': showInstructions}"
               :disabled="disabled"
               title="Instructions"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
               </svg>
             </button>
@@ -86,11 +87,11 @@
             <button
               type="button"
               @click="shareChat"
-              class="btn btn-outline btn-circle h-9 w-9 sm:h-14 sm:w-14 min-h-0 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
+              class="btn btn-outline btn-circle h-9 w-9 sm:h-10 sm:w-10 lg:h-12 lg:w-12 min-h-0 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
               :disabled="disabled"
               :title="chatId ? 'Share' : 'Make shareable'"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
               </svg>
             </button>
@@ -98,11 +99,11 @@
             <button
               type="button"
               @click="resetChat"
-              class="btn btn-outline btn-circle h-9 w-9 sm:h-14 sm:w-14 min-h-0 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
+              class="btn btn-outline btn-circle h-9 w-9 sm:h-10 sm:w-10 lg:h-12 lg:w-12 min-h-0 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
               :disabled="disabled"
               title="Reset"
             >
-              <MdiRestart class="h-4 w-4 sm:h-6 sm:w-6" />
+              <MdiRestart class="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
           </div>
         </div>
@@ -144,6 +145,44 @@ function autoResize() {
     inputEl.value.style.height = 'auto'
     const maxHeight = window.innerWidth < 640 ? 112 : 192
     inputEl.value.style.height = `${Math.min(inputEl.value.scrollHeight, maxHeight)}px`
+  }
+}
+
+function handlePaste(event: ClipboardEvent) {
+  const pastedText = event.clipboardData?.getData('text')
+  if (!pastedText) return
+
+  // Check if pasted text looks like PlantUML code (contains PlantUML keywords but not wrapped)
+  const isPlantUmlLike = (
+    (pastedText.includes('@start') && pastedText.includes('@end')) ||
+    (pastedText.includes('->') && pastedText.includes(':')) ||
+    (pastedText.includes('participant') || pastedText.includes('actor') || pastedText.includes('entity')) ||
+    (pastedText.includes('class') && pastedText.includes('{')) ||
+    (pastedText.includes('skinparam') || pastedText.includes('title'))
+  ) && !pastedText.includes('@startuml')
+
+  if (isPlantUmlLike) {
+    event.preventDefault()
+    const selectionStart = inputEl.value?.selectionStart || 0
+    const selectionEnd = inputEl.value?.selectionEnd || 0
+    const currentValue = modelValue.value
+    const before = currentValue.substring(0, selectionStart)
+    const after = currentValue.substring(selectionEnd)
+    
+    // Wrap with @startuml/@enduml if not already wrapped
+    const wrappedCode = pastedText.includes('@startuml') 
+      ? pastedText 
+      : `@startuml\n${pastedText.trim()}\n@enduml`
+    
+    modelValue.value = before + wrappedCode + after
+    
+    nextTick(() => {
+      if (inputEl.value) {
+        const newCursorPos = selectionStart + wrappedCode.length
+        inputEl.value.setSelectionRange(newCursorPos, newCursorPos)
+        autoResize()
+      }
+    })
   }
 }
 

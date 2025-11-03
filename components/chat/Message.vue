@@ -58,10 +58,25 @@
       </div>
       <div class="flex-1 min-w-0 w-full">
         <div class="bg-gradient-to-br from-primary to-primary/90 text-primary-content rounded-2xl shadow-md p-4 sm:p-5">
-          <p class="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words">{{ message.content }}</p>
+          <template v-if="extractPlantUml(message.content)">
+            <p v-if="getTextBeforePlantUml(message.content)" class="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words mb-4">
+              {{ getTextBeforePlantUml(message.content) }}
+            </p>
+            <div class="mb-4">
+              <PlantUmlDiagram :code="extractPlantUml(message.content)!" />
+            </div>
+            <CodeBlock :code="extractPlantUml(message.content)!" title="PlantUML Code" class="mb-4" />
+            <p v-if="getTextAfterPlantUml(message.content)" class="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words">
+              {{ getTextAfterPlantUml(message.content) }}
+            </p>
+          </template>
+          <p v-else class="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words">{{ message.content }}</p>
         </div>
-        <div class="text-right mt-2 px-2">
+        <div class="flex items-center justify-end gap-2 mt-2 px-2">
           <span class="text-xs text-base-content/50">{{ formatTime(new Date()) }}</span>
+          <button @click="copyMessage(message.content)" class="btn btn-ghost btn-xs" title="Copy">
+            <MdiContentCopy class="h-3 w-3 text-base-content" />
+          </button>
         </div>
       </div>
     </div>
@@ -128,6 +143,28 @@ function getTextAfterBusinessCard(content: string): string {
 async function copyMessage(text: string) {
   try {
     await navigator.clipboard.writeText(text)
+    // Show a brief notification
+    const notification = document.createElement('div')
+    notification.className = 'fixed top-4 right-4 z-50 bg-success text-success-content px-4 py-3 rounded-lg shadow-lg flex items-center gap-2'
+    notification.style.transition = 'opacity 0.3s, transform 0.3s'
+    notification.style.opacity = '0'
+    notification.style.transform = 'translateY(-10px)'
+    notification.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+      </svg>
+      <span>Copied!</span>
+    `
+    document.body.appendChild(notification)
+    requestAnimationFrame(() => {
+      notification.style.opacity = '1'
+      notification.style.transform = 'translateY(0)'
+    })
+    setTimeout(() => {
+      notification.style.opacity = '0'
+      notification.style.transform = 'translateY(-10px)'
+      setTimeout(() => notification.remove(), 300)
+    }, 1500)
   } catch (e) {
     console.error('Failed to copy:', e)
   }

@@ -29,10 +29,10 @@
             class="btn btn-xs btn-ghost"
             :class="{ 'btn-success': urlCopied }"
           >
-            <svg v-if="!urlCopied" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg v-if="!urlCopied" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-base-content" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-base-content" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
           </button>
@@ -63,7 +63,7 @@
 
       <div v-if="showCode" class="border-t border-base-300">
         <div class="bg-base-300 px-4 py-2">
-          <span class="text-xs font-mono text-base-content/70">PlantUML Source</span>
+          <span class="text-xs font-mono text-base-content">PlantUML Source</span>
         </div>
         <div class="bg-neutral text-neutral-content p-4 overflow-x-auto">
           <pre class="text-xs sm:text-sm font-mono whitespace-pre-wrap break-words">{{ currentCode }}</pre>

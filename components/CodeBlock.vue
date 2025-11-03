@@ -1,7 +1,7 @@
 <template>
   <div class="collapse collapse-arrow bg-base-200 border border-base-300">
     <input type="checkbox" v-model="isOpen" /> 
-    <div class="collapse-title text-sm font-medium flex items-center gap-2">
+    <div class="collapse-title text-sm font-medium flex items-center gap-2 text-base-content">
       <MdiCodeTags class="h-4 w-4" />
       <span>{{ title }}</span>
       <button 
