@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const chat = createChat(body.messages)
+  const chat = await createChat(body.messages)
 
   return { id: chat.id }
 })

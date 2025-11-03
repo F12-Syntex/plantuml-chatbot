@@ -1,4 +1,4 @@
-import { getChat } from '../../utils/chatStorage'
+import { getChat, saveChat } from '../../utils/chatStorage'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const chat = getChat(id)
+  const chat = await getChat(id)
 
   if (!chat) {
     throw createError({
@@ -18,6 +18,10 @@ export default defineEventHandler(async (event) => {
       message: 'Chat not found'
     })
   }
+
+  // Re-save the chat to ensure it persists (refresh the storage entry)
+  // This helps prevent chats from being lost
+  await saveChat(chat)
 
   return chat
 })
