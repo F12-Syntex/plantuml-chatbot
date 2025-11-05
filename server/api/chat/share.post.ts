@@ -1,9 +1,13 @@
 import { createChat, logChatAccess } from '../../utils/chatStorage'
 import { getClientIP, getClientRegion, parseUserAgent, getRequestInfo } from '../../utils/deviceInfo'
 
+type MessageContent = 
+  | string 
+  | Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }>
+
 interface Message {
   role: 'user' | 'assistant' | 'system'
-  content: string
+  content: MessageContent
 }
 
 export default defineEventHandler(async (event) => {

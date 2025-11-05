@@ -28,7 +28,7 @@
 <script setup lang="ts">
 interface Message {
   role: 'user' | 'assistant'
-  content: string
+  content: string | Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }>
 }
 
 defineProps<{

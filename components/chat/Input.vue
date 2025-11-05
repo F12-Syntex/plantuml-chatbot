@@ -26,6 +26,24 @@
         </div>
       </div>
 
+      <!-- Image previews -->
+      <div v-if="imagePreviews.length > 0" class="mb-2 sm:mb-3 flex flex-wrap gap-2">
+        <div v-for="(preview, index) in imagePreviews" :key="index" class="relative group">
+          <img :src="preview.url" :alt="preview.name" class="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border border-base-300" />
+          <button
+            type="button"
+            @click="removeImage(index)"
+            class="absolute -top-2 -right-2 btn btn-circle btn-xs bg-error text-error-content border-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            title="Remove image"
+          >
+            <MdiClose class="h-3 w-3" />
+          </button>
+          <div class="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-xs px-1 py-0.5 rounded-b-lg truncate">
+            {{ preview.name }}
+          </div>
+        </div>
+      </div>
+
       <form @submit.prevent="handleSubmit" class="relative">
         <div class="flex flex-col sm:flex-row gap-2 sm:items-end">
           <div class="flex-1 relative group">
@@ -47,7 +65,7 @@
                   {{ modelValue.length }}
                 </div>
                 <button
-                  v-if="modelValue.trim()"
+                  v-if="modelValue.trim() || imagePreviews.length > 0"
                   type="button"
                   @click="clearInput"
                   class="btn btn-ghost btn-circle btn-xs hover:bg-base-300/50 transition-all"
@@ -60,9 +78,27 @@
           </div>
           
           <div class="flex gap-1 sm:gap-1.5 justify-end sm:justify-start flex-shrink-0">
+            <input
+              ref="fileInputEl"
+              type="file"
+              accept="image/*"
+              multiple
+              @change="handleFileSelect"
+              class="hidden"
+            />
+            <button
+              type="button"
+              @click="fileInputEl?.click()"
+              class="btn btn-outline btn-circle h-9 w-9 sm:h-10 sm:w-10 lg:h-12 lg:w-12 min-h-0 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-200"
+              :disabled="disabled"
+              title="Upload image"
+            >
+              <MdiImageOutline class="h-4 w-4 sm:h-5 sm:w-5" />
+            </button>
+
             <button
               type="submit"
-              :disabled="!modelValue.trim() || disabled"
+              :disabled="(!modelValue.trim() && imagePreviews.length === 0) || disabled"
               class="btn btn-primary btn-circle h-9 w-9 sm:h-10 sm:w-10 lg:h-12 lg:w-12 min-h-0 shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-50 disabled:scale-100"
               :class="{'animate-pulse': disabled}"
               title="Send"
@@ -116,6 +152,14 @@
 import MdiClose from '~icons/mdi/close'
 import MdiSend from '~icons/mdi/send'
 import MdiRestart from '~icons/mdi/restart'
+import MdiImageOutline from '~icons/mdi/image-outline'
+
+interface ImagePreview {
+  url: string
+  name: string
+  base64: string
+  type: string
+}
 
 const modelValue = defineModel<string>({ required: true })
 
@@ -125,15 +169,20 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  submit: [instructions: string]
+  submit: [instructions: string, images: ImagePreview[]]
   reset: []
   share: []
 }>()
 
 const inputEl = ref<HTMLTextAreaElement | null>(null)
+const fileInputEl = ref<HTMLInputElement | null>(null)
 const showInstructions = ref(false)
 const instructionsExpanded = ref(false)
 const additionalInstructions = ref('')
+const imagePreviews = ref<ImagePreview[]>([])
+
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024 // 10MB
+const MAX_IMAGES = 10
 
 const DEFAULT_INSTRUCTIONS = `1: always troubleshoot, if successful go to the next instruction else rollback
 2: no side notes, notes are to be added in the node itself
@@ -148,8 +197,47 @@ function autoResize() {
   }
 }
 
-function handlePaste(event: ClipboardEvent) {
-  const pastedText = event.clipboardData?.getData('text')
+async function handlePaste(event: ClipboardEvent) {
+  const clipboardData = event.clipboardData
+  if (!clipboardData) return
+
+  // Check for pasted images first
+  const items = Array.from(clipboardData.items)
+  const imageItem = items.find(item => item.type.startsWith('image/'))
+  
+  if (imageItem) {
+    event.preventDefault()
+    const file = imageItem.getAsFile()
+    if (file) {
+      if (imagePreviews.value.length >= MAX_IMAGES) {
+        alert(`Maximum ${MAX_IMAGES} images allowed`)
+        return
+      }
+      
+      if (file.size > MAX_IMAGE_SIZE) {
+        alert('Image is too large. Maximum size is 10MB')
+        return
+      }
+
+      try {
+        const base64 = await fileToBase64(file)
+        const preview: ImagePreview = {
+          url: URL.createObjectURL(file),
+          name: file.name || 'pasted-image.png',
+          base64,
+          type: file.type
+        }
+        imagePreviews.value.push(preview)
+      } catch (error) {
+        console.error('Error processing pasted image:', error)
+        alert('Failed to process pasted image')
+      }
+    }
+    return
+  }
+
+  // Handle text paste
+  const pastedText = clipboardData.getData('text')
   if (!pastedText) return
 
   // Check if pasted text looks like PlantUML code (contains PlantUML keywords but not wrapped)
@@ -186,14 +274,95 @@ function handlePaste(event: ClipboardEvent) {
   }
 }
 
+async function handleFileSelect(event: Event) {
+  const target = event.target as HTMLInputElement
+  const files = target.files
+  if (!files || files.length === 0) return
+
+  const remainingSlots = MAX_IMAGES - imagePreviews.value.length
+  if (remainingSlots <= 0) {
+    alert(`Maximum ${MAX_IMAGES} images allowed`)
+    return
+  }
+
+  const filesToProcess = Array.from(files).slice(0, remainingSlots)
+
+  for (const file of filesToProcess) {
+    if (!file.type.startsWith('image/')) {
+      alert(`${file.name} is not an image file`)
+      continue
+    }
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      alert(`${file.name} is too large. Maximum size is 10MB`)
+      continue
+    }
+
+    try {
+      const base64 = await fileToBase64(file)
+      const preview: ImagePreview = {
+        url: URL.createObjectURL(file),
+        name: file.name,
+        base64,
+        type: file.type
+      }
+      imagePreviews.value.push(preview)
+    } catch (error) {
+      console.error('Error processing image:', error)
+      alert(`Failed to process ${file.name}`)
+    }
+  }
+
+  // Reset file input
+  if (target) {
+    target.value = ''
+  }
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      // Remove data:image/...;base64, prefix if present
+      const base64 = result.includes(',') ? result.split(',')[1] : result
+      resolve(base64)
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+}
+
+function removeImage(index: number) {
+  const preview = imagePreviews.value[index]
+  if (preview.url.startsWith('blob:')) {
+    URL.revokeObjectURL(preview.url)
+  }
+  imagePreviews.value.splice(index, 1)
+}
+
 function handleSubmit() {
-  if (modelValue.value.trim()) {
-    emit('submit', additionalInstructions.value)
+  if (modelValue.value.trim() || imagePreviews.value.length > 0) {
+    emit('submit', additionalInstructions.value, imagePreviews.value)
+    // Clear images after submit
+    imagePreviews.value.forEach(preview => {
+      if (preview.url.startsWith('blob:')) {
+        URL.revokeObjectURL(preview.url)
+      }
+    })
+    imagePreviews.value = []
   }
 }
 
 function clearInput() {
   modelValue.value = ''
+  // Clear images
+  imagePreviews.value.forEach(preview => {
+    if (preview.url.startsWith('blob:')) {
+      URL.revokeObjectURL(preview.url)
+    }
+  })
+  imagePreviews.value = []
   nextTick(() => autoResize())
 }
 

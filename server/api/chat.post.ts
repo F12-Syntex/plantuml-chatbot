@@ -1,6 +1,10 @@
+type MessageContent = 
+  | string 
+  | Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }>
+
 interface Message {
   role: 'user' | 'assistant' | 'system'
-  content: string
+  content: MessageContent
 }
 
 interface ChatRequest {
@@ -212,9 +216,22 @@ EXAMPLE 2 - Grid Layout with Inline Color Badges:
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
+    const errorMessage = errorData.error?.message || 'Failed to get response from OpenRouter'
+    
+    // Check if error is related to images/vision
+    const isImageError = typeof errorMessage === 'string' && (
+      errorMessage.toLowerCase().includes('image') ||
+      errorMessage.toLowerCase().includes('vision') ||
+      errorMessage.toLowerCase().includes('multimodal') ||
+      errorMessage.toLowerCase().includes('does not support') ||
+      errorMessage.toLowerCase().includes('invalid content') ||
+      errorMessage.toLowerCase().includes('content type')
+    )
+    
     throw createError({
       statusCode: response.status,
-      message: errorData.error?.message || 'Failed to get response from OpenRouter'
+      message: errorMessage,
+      data: { isImageError }
     })
   }
 
@@ -251,6 +268,33 @@ EXAMPLE 2 - Grid Layout with Inline Color Badges:
             if (!trimmed || !trimmed.startsWith('data: ')) continue
 
             const data = trimmed.slice(6)
+            
+            // Check for error in stream
+            if (data.startsWith('{') && data.includes('"error"')) {
+              try {
+                const errorData = JSON.parse(data)
+                if (errorData.error) {
+                  const errorMessage = errorData.error.message || 'Unknown error'
+                  const isImageError = typeof errorMessage === 'string' && (
+                    errorMessage.toLowerCase().includes('image') ||
+                    errorMessage.toLowerCase().includes('vision') ||
+                    errorMessage.toLowerCase().includes('multimodal') ||
+                    errorMessage.toLowerCase().includes('does not support') ||
+                    errorMessage.toLowerCase().includes('invalid content')
+                  )
+                  
+                  controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ 
+                    type: 'error', 
+                    error: errorMessage,
+                    isImageError 
+                  })}\n\n`))
+                  controller.close()
+                  return
+                }
+              } catch {
+                // Continue if not a parseable error
+              }
+            }
             
             if (data !== '[DONE]') {
               try {

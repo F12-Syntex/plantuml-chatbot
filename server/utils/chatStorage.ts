@@ -1,8 +1,12 @@
 import { put, head, list, del } from '@vercel/blob'
 
+type MessageContent = 
+  | string 
+  | Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }>
+
 interface Message {
   role: 'user' | 'assistant' | 'system'
-  content: string
+  content: MessageContent
 }
 
 interface Chat {

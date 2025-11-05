@@ -34,10 +34,22 @@
               {{ getTextAfterPlantUml(message.content) }}
             </p>
           </template>
-          <p v-else class="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words">
-            {{ message.content }}
-            <span v-if="isStreaming" class="inline-block w-2 h-4 bg-primary animate-pulse ml-1"></span>
-          </p>
+          <template v-else>
+            <div v-if="getMessageImages(message.content).length > 0" class="flex flex-wrap gap-2 mb-3">
+              <img 
+                v-for="(imageUrl, idx) in getMessageImages(message.content)" 
+                :key="idx"
+                :src="imageUrl" 
+                alt="Uploaded image"
+                class="max-w-full max-h-64 rounded-lg border border-base-300 cursor-pointer hover:opacity-90 transition-opacity"
+                @click="openImageModal(imageUrl)"
+              />
+            </div>
+            <p v-if="getMessageText(message.content)" class="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words">
+              {{ getMessageText(message.content) }}
+              <span v-if="isStreaming" class="inline-block w-2 h-4 bg-primary animate-pulse ml-1"></span>
+            </p>
+          </template>
         </div>
         <div class="flex items-center gap-2 mt-2 px-2">
           <span class="text-xs text-base-content/50">{{ formatTime(new Date()) }}</span>
@@ -78,7 +90,21 @@
               {{ getTextAfterPlantUml(message.content) }}
             </p>
           </template>
-          <p v-else class="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words">{{ message.content }}</p>
+          <template v-else>
+            <div v-if="getMessageImages(message.content).length > 0" class="flex flex-wrap gap-2 mb-3">
+              <img 
+                v-for="(imageUrl, idx) in getMessageImages(message.content)" 
+                :key="idx"
+                :src="imageUrl" 
+                alt="Uploaded image"
+                class="max-w-full max-h-64 rounded-lg border border-primary/30 cursor-pointer hover:opacity-90 transition-opacity"
+                @click="openImageModal(imageUrl)"
+              />
+            </div>
+            <p v-if="getMessageText(message.content)" class="text-sm sm:text-base leading-relaxed whitespace-pre-wrap break-words">
+              {{ getMessageText(message.content) }}
+            </p>
+          </template>
         </div>
         <div class="flex items-center justify-end gap-2 mt-2 px-2">
           <span class="text-xs text-base-content/50">{{ formatTime(new Date()) }}</span>
@@ -107,7 +133,7 @@ import MdiDeleteOutline from '~icons/mdi/delete-outline'
 
 interface Message {
   role: 'user' | 'assistant'
-  content: string
+  content: string | Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }>
 }
 
 const props = defineProps<{
@@ -129,26 +155,44 @@ function handleDelete() {
   }
 }
 
-function extractPlantUml(content: string): string | null {
-  const match = content.match(/@startuml[\s\S]*?@enduml/)
+function getMessageText(content: Message['content']): string {
+  if (typeof content === 'string') {
+    return content
+  }
+  return content.filter(c => c.type === 'text').map(c => c.text || '').join('')
+}
+
+function getMessageImages(content: Message['content']): string[] {
+  if (typeof content === 'string') {
+    return []
+  }
+  return content.filter(c => c.type === 'image_url').map(c => c.image_url?.url || '').filter(Boolean)
+}
+
+function extractPlantUml(content: Message['content']): string | null {
+  const text = getMessageText(content)
+  const match = text.match(/@startuml[\s\S]*?@enduml/)
   return match ? match[0] : null
 }
 
-function getTextBeforePlantUml(content: string): string {
-  const match = content.match(/@startuml/)
+function getTextBeforePlantUml(content: Message['content']): string {
+  const text = getMessageText(content)
+  const match = text.match(/@startuml/)
   if (!match || match.index === undefined) return ''
-  return content.substring(0, match.index).trim()
+  return text.substring(0, match.index).trim()
 }
 
-function getTextAfterPlantUml(content: string): string {
-  const match = content.match(/@enduml/)
+function getTextAfterPlantUml(content: Message['content']): string {
+  const text = getMessageText(content)
+  const match = text.match(/@enduml/)
   if (!match || match.index === undefined) return ''
-  return content.substring(match.index + 8).trim()
+  return text.substring(match.index + 8).trim()
 }
 
-function extractBusinessCard(content: string): { front: string; back: string } | null {
-  const frontMatch = content.match(/<!--BUSINESS_CARD_FRONT-->([\s\S]*?)<!--\/BUSINESS_CARD_FRONT-->/)
-  const backMatch = content.match(/<!--BUSINESS_CARD_BACK-->([\s\S]*?)<!--\/BUSINESS_CARD_BACK-->/)
+function extractBusinessCard(content: Message['content']): { front: string; back: string } | null {
+  const text = getMessageText(content)
+  const frontMatch = text.match(/<!--BUSINESS_CARD_FRONT-->([\s\S]*?)<!--\/BUSINESS_CARD_FRONT-->/)
+  const backMatch = text.match(/<!--BUSINESS_CARD_BACK-->([\s\S]*?)<!--\/BUSINESS_CARD_BACK-->/)
 
   if (frontMatch && backMatch) {
     return {
@@ -159,20 +203,23 @@ function extractBusinessCard(content: string): { front: string; back: string } |
   return null
 }
 
-function getTextBeforeBusinessCard(content: string): string {
-  const match = content.match(/<!--BUSINESS_CARD_FRONT-->/)
+function getTextBeforeBusinessCard(content: Message['content']): string {
+  const text = getMessageText(content)
+  const match = text.match(/<!--BUSINESS_CARD_FRONT-->/)
   if (!match || match.index === undefined) return ''
-  return content.substring(0, match.index).trim()
+  return text.substring(0, match.index).trim()
 }
 
-function getTextAfterBusinessCard(content: string): string {
-  const match = content.match(/<!--\/BUSINESS_CARD_BACK-->/)
+function getTextAfterBusinessCard(content: Message['content']): string {
+  const text = getMessageText(content)
+  const match = text.match(/<!--\/BUSINESS_CARD_BACK-->/)
   if (!match || match.index === undefined) return ''
-  return content.substring(match.index + 29).trim()
+  return text.substring(match.index + 29).trim()
 }
 
-async function copyMessage(text: string) {
+async function copyMessage(content: Message['content']) {
   try {
+    const text = typeof content === 'string' ? content : getMessageText(content)
     await navigator.clipboard.writeText(text)
     // Show a brief notification
     const notification = document.createElement('div')
@@ -199,6 +246,43 @@ async function copyMessage(text: string) {
   } catch (e) {
     console.error('Failed to copy:', e)
   }
+}
+
+function openImageModal(imageUrl: string) {
+  // Create modal overlay
+  const modal = document.createElement('div')
+  modal.className = 'fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4'
+  modal.style.transition = 'opacity 0.3s'
+  modal.style.opacity = '0'
+  
+  const img = document.createElement('img')
+  img.src = imageUrl
+  img.className = 'max-w-full max-h-[90vh] rounded-lg shadow-2xl'
+  img.alt = 'Full size image'
+  
+  modal.appendChild(img)
+  document.body.appendChild(modal)
+  
+  // Fade in
+  requestAnimationFrame(() => {
+    modal.style.opacity = '1'
+  })
+  
+  // Close on click
+  modal.addEventListener('click', () => {
+    modal.style.opacity = '0'
+    setTimeout(() => modal.remove(), 300)
+  })
+  
+  // Close on escape
+  const handleEscape = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      modal.style.opacity = '0'
+      setTimeout(() => modal.remove(), 300)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }
+  document.addEventListener('keydown', handleEscape)
 }
 
 function formatTime(date: Date): string {

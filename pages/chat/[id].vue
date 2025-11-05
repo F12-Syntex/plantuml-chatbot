@@ -38,7 +38,7 @@
 <script setup lang="ts">
 interface Message {
   role: 'user' | 'assistant'
-  content: string
+  content: string | Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }>
 }
 
 interface Suggestion {
@@ -168,12 +168,33 @@ function shareChat() {
   })
 }
 
-async function onSend(additionalInstructions: string) {
+async function onSend(additionalInstructions: string, images: Array<{ url: string; name: string; base64: string; type: string }> = []) {
   const text = draft.value.trim()
-  if (!text || sending.value) return
+  if ((!text && images.length === 0) || sending.value) return
   
   sending.value = true
-  messages.value.push({ role: 'user', content: text })
+  
+  // Format message with images if present
+  let messageContent: Message['content']
+  if (images.length > 0) {
+    const contentParts: Array<{ type: 'text' | 'image_url'; text?: string; image_url?: { url: string } }> = []
+    if (text) {
+      contentParts.push({ type: 'text', text })
+    }
+    for (const image of images) {
+      contentParts.push({
+        type: 'image_url',
+        image_url: {
+          url: `data:${image.type};base64,${image.base64}`
+        }
+      })
+    }
+    messageContent = contentParts
+  } else {
+    messageContent = text
+  }
+  
+  messages.value.push({ role: 'user', content: messageContent })
   draft.value = ''
   streamingContent.value = ''
   generatingDiagram.value = false
@@ -196,7 +217,29 @@ async function onSend(additionalInstructions: string) {
     })
 
     if (!response.ok || !response.body) {
-      throw new Error('Stream failed')
+      const errorText = await response.text().catch(() => '')
+      let errorMessage = 'Failed to get response from the server'
+      let isImageError = false
+      
+      try {
+        const errorData = JSON.parse(errorText)
+        errorMessage = errorData.message || errorMessage
+        isImageError = errorData.data?.isImageError || false
+      } catch {
+        // If not JSON, try to extract error message
+        if (errorText) {
+          errorMessage = errorText
+          isImageError = errorText.toLowerCase().includes('image') || 
+                        errorText.toLowerCase().includes('vision') ||
+                        errorText.toLowerCase().includes('multimodal')
+        }
+      }
+      
+      if (isImageError) {
+        throw new Error(`The selected model doesn't support images. Please try a vision-capable model like GPT-4o, GPT-4 Vision, or Claude 3.5 Sonnet. Error: ${errorMessage}`)
+      } else {
+        throw new Error(errorMessage)
+      }
     }
 
     const reader = response.body.getReader()
@@ -221,6 +264,19 @@ async function onSend(additionalInstructions: string) {
 
         try {
           const parsed = JSON.parse(data)
+          
+          // Check for error messages from server
+          if (parsed.type === 'error') {
+            const errorMessage = parsed.error || 'Unknown error'
+            const isImageError = parsed.isImageError || false
+            
+            if (isImageError) {
+              throw new Error(`The selected model doesn't support images. Please try a vision-capable model like GPT-4o, GPT-4 Vision, or Claude 3.5 Sonnet.`)
+            } else {
+              throw new Error(errorMessage)
+            }
+          }
+          
           const content = parsed.choices?.[0]?.delta?.content
           if (content) {
             fullContent += content
@@ -240,8 +296,27 @@ async function onSend(additionalInstructions: string) {
             await nextTick()
             messageListEl.value?.scrollToBottom()
           }
-        } catch (e) {
-          console.error('Parse error:', e)
+        } catch (parseError) {
+          console.error('Parse error:', parseError)
+          // Check if this is an error message in the stream
+          try {
+            const parsed = JSON.parse(data)
+            if (parsed.error) {
+              const errorMessage = parsed.error.message || 'Unknown error'
+              const isImageError = errorMessage.toLowerCase().includes('image') ||
+                                  errorMessage.toLowerCase().includes('vision') ||
+                                  errorMessage.toLowerCase().includes('multimodal') ||
+                                  errorMessage.toLowerCase().includes('does not support')
+              
+              if (isImageError) {
+                throw new Error(`The selected model doesn't support images. Please try a vision-capable model like GPT-4o, GPT-4 Vision, or Claude 3.5 Sonnet.`)
+              } else {
+                throw new Error(errorMessage)
+              }
+            }
+          } catch {
+            // Not an error object, continue
+          }
         }
       }
     }
@@ -254,9 +329,18 @@ async function onSend(additionalInstructions: string) {
     }
   } catch (error) {
     console.error('Chat error:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Sorry, there was an error generating the response. Please try again.'
+    
+    // Check if it's an image-related error
+    const isImageError = errorMessage.toLowerCase().includes('image') ||
+                        errorMessage.toLowerCase().includes('vision') ||
+                        errorMessage.toLowerCase().includes('doesn\'t support images')
+    
     messages.value.push({ 
       role: 'assistant', 
-      content: 'Sorry, there was an error generating the diagram. Please try again.' 
+      content: isImageError 
+        ? errorMessage 
+        : 'Sorry, there was an error generating the response. Please try again.'
     })
     streamingContent.value = ''
     generatingDiagram.value = false
